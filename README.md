@@ -130,6 +130,27 @@ Each port's `derive()` returns a differently-*shaped* result (C# returns bare lo
 
 State floats are compared **by value**, not by serialization: the spec pins leaf encoding (§3) but *not* state serialization, so JS's `JSON.stringify(1e-5)` → `0.00001` and Python's `repr(1e-5)` → `1e-05` are the same float64 and must compare equal.
 
+## One known limitation, precisely bounded
+
+**`gitpp-pl` diverges on bare integer literals in [2^63, 1e21).** Everything
+else in the 20,043-record leaf corpus agrees.
+
+The cause is `JSON::PP`, not the port. Spec §2/§3 put every JSON number in
+the float64 domain, and no flag makes `JSON::PP` do that:
+
+| Input | `JSON::PP` yields | Why it is unrecoverable |
+|-------|------------------|--------------------------|
+| `724818294626474393600` | a plain **string** | a JSON string must stay a string, so there is no flag that distinguishes it from `"724818294626474393600"` |
+| `9223372036854775807` | an exact **int64** | it fits in an IV, but stringifying any large IV also sets `SVp_POK`, so the POK test cannot separate it from a string either |
+
+Both are cases where the *decoder* has already lost the information the
+spec needs. Python (`json.loads(parse_int=float)`) and C#
+(`Numbers.ParseRecords`) recover it. Perl cannot without a decoder that
+records, per value, whether the source text was a bare number or a quoted
+string — which means tokenising the input rather than calling `JSON::PP`.
+
+`gitpp-pl` v0.1.7 documents this on the port itself.
+
 ## The gap that is now closed
 
 Until `gitpp-c` v0.2.0, the C99 port had `recordLeaf` and `closureRoot` but

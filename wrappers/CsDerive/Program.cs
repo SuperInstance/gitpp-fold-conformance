@@ -8,7 +8,7 @@ using Gitpp;
 class Program {
   static async Task Main() {
     var json = await Console.In.ReadToEndAsync();
-    var records = JsonSerializer.Deserialize<Record[]>(json);
+    var records = Gitpp.Numbers.ParseRecords(json);
     var r = Fold.Derive(records);
     var conflicts = r.Conflicts.Select(c => new {
       key = c.GetValueOrDefault("key")?.ToString() ?? "",
