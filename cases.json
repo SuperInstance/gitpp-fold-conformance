@@ -1311,6 +1311,75 @@
         ],
         "orphans": []
       }
+    },
+    {
+      "name": "d27-decision-receipt-inert",
+      "why": "A decision receipt is a record with effects:{} carrying a gate verdict in reason. It must be STATE-INERT: SS5.2 iterates 'for each key K that R sets', so a record setting no key can never become a setter, create a conflict, or change state. This is the property that makes the receipt safe to write unconditionally, and it is a claim about the FOLD, not about one port. Also pins that a receipt's presence changes the topo ORDER (it is still a record in the set) while leaving state, setters and the conflict ledger byte-identical. NB: t1 sets owner=null and t2 sets owner=\"me\", so the ledger carries TWO conflicts. The receipt itself contributes neither: n1 sets no key, so it can never be a winner or a loser.",
+      "records": [
+        {
+          "id": "t1",
+          "kind": "task",
+          "parents": [],
+          "effects": {
+            "status": "wip",
+            "owner": null
+          },
+          "reason": "started"
+        },
+        {
+          "id": "n1",
+          "kind": "witness",
+          "parents": [
+            "t1"
+          ],
+          "effects": {},
+          "reason": "gate:act should_apply=0.93 parent=t1-is-setter"
+        },
+        {
+          "id": "t2",
+          "kind": "task",
+          "parents": [
+            "n1"
+          ],
+          "effects": {
+            "status": "done",
+            "owner": "me"
+          },
+          "reason": "work complete"
+        }
+      ],
+      "expect": {
+        "state": {
+          "status": "done",
+          "owner": "me"
+        },
+        "setters": {
+          "status": "t2",
+          "owner": "t2"
+        },
+        "order": [
+          "t1",
+          "n1",
+          "t2"
+        ],
+        "conflicts": [
+          {
+            "key": "owner",
+            "winner": "t2",
+            "losers": [
+              "t1"
+            ]
+          },
+          {
+            "key": "status",
+            "winner": "t2",
+            "losers": [
+              "t1"
+            ]
+          }
+        ],
+        "orphans": []
+      }
     }
   ]
 }

@@ -87,7 +87,12 @@ out={
  "state": canon(d.get("state",{})),
  "setters": canon(d.get("setters",{})),
  "has_setters": "setters" in d,
- "order": sorted(d.get("order",[])),
+ # NOT sorted. Kahn's order IS the assertion (SS5.4): a parent must
+ # precede its children, and ties break smallest-id-first. Sorting here
+ # meant NO case in this corpus ever tested topological order -- any
+ # permutation passed. Found while adding d27, whose first draft
+ # "failed" for an unrelated reason and exposed this.
+ "order": d.get("order",[]),
  "conflicts": sorted([
    {"key":c["key"],"winner":c["winner"],"losers":sorted(c["losers"])}
    for c in d.get("conflicts",[])], key=lambda c:c["key"]),

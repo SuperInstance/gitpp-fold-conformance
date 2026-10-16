@@ -42,6 +42,7 @@ We had exactly that, and the leaf fuzz was structurally incapable of finding it.
 | d24 | realistic mixed set | all |
 | **d25** | **numeric string vs number preserved through the fold** | **§3, §5.2** |
 | **d26** | **setter provenance for every key, contested or not** | **§5.6** |
+| **d27** | **a decision receipt is state-inert** | **§5.2, §5.1** |
 
 **Bold** = cases that caught a real bug.
 
@@ -76,10 +77,26 @@ Exit code 0 = all ports agree with each other and with the spec.
 ## Result
 
 ```
-26 pass, 0 fail, 0 skip (of 26)
+27 pass, 0 fail, 0 skip (of 27)
 ```
 
-The `26` is the whole corpus. `d26-setter-provenance` pins spec §5.6.
+The `27` is the whole corpus. `d26` pins spec §5.6 (setter provenance);
+`d27` pins that a decision receipt — a record with `effects: {}` carrying
+a gate verdict in `reason` — cannot change state, setters, or the conflict
+ledger. See [`gitpp-decision-parent`](https://github.com/SuperInstance/gitpp-decision-parent).
+
+## What the corpus was blind to until d27
+
+The runner normalised `order` with `sorted()`. Kahn's order **is** the
+assertion in §5.4 — a parent must precede its children, ties break
+smallest-id-first — and sorting erased exactly that. **No case in this
+corpus had ever tested topological order.** Any permutation passed.
+
+Found while writing d27, whose first draft failed for an unrelated reason
+(a missing conflict I had forgotten) and sent me back to the normaliser.
+
+Negative control, after the fix: reversing a port's topo order produces
+2 failures. Before it, zero.
 
 **All 5 leaf ports now fold.** The C99 port gained `derive()` in
 `gitpp-c` v0.2.0, so the "7 ports" claim is no longer quietly "6 ports,
