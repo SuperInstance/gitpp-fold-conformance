@@ -1,0 +1,65 @@
+name: fold conformance
+
+# The leaf fuzz proves ports agree on record ENCODING. This proves they
+# agree on fold SEMANTICS. Both are needed: a port can hash a record
+# identically and still disagree about which record wins a contested key.
+#
+# All five ports are cloned as siblings of this repo.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        port: [python, javascript, csharp, perl, c]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Clone the ports
+        run: |
+          git clone --depth 1 https://github.com/SuperInstance/gitpp-doctor   ../gitpp-doctor
+          git clone --depth 1 https://github.com/SuperInstance/gitpp-js       ../gitpp-js
+          git clone --depth 1 https://github.com/SuperInstance/gitpp-cs      ../gitpp-cs
+          git clone --depth 1 https://github.com/SuperInstance/gitpp-pl      ../gitpp-pl
+          git clone --depth 1 https://github.com/SuperInstance/gitpp-c       ../gitpp-c
+
+      - name: Build the C99 port
+        working-directory: ../gitpp-c
+        run: |
+          gcc -O2 -Wall -o gitpp gitpp.c -lm
+          cp gitpp "$GITHUB_WORKSPACE/gitpp-c-derive"
+
+      - name: Build the C# wrapper
+        working-directory: ../gitpp-cs
+        run: dotnet build src/Gitpp.csproj -c Release
+
+      - name: Run the corpus (${{ matrix.port }})
+        run: |
+          export GITPP_C_BIN="$GITHUB_WORKSPACE/gitpp-c-derive"
+          node run.mjs
+
+      - name: Publish results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fold-conformance-${{ matrix.port }}
+          path: results.json
