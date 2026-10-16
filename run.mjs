@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const ROOT = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
+const ROOT = "/tmp/derive-corpus";
 const corpusText = readFileSync(`${ROOT}/cases.json`, "utf8");
 const corpus = JSON.parse(corpusText);
 
@@ -56,6 +56,7 @@ const PORTS = {
   cs: (j) => run("dotnet", [`${ROOT}/wrappers/CsDerive/bin/Debug/net9.0/CsDerive.dll`], j),
   pl: (j) => run("perl", [`${ROOT}/wrappers/PlDerive.pl`], j),
 };
+PORTS.c = (j) => run("sh", [`${ROOT}/wrappers/CDerive.sh`], j);
 const names = Object.keys(PORTS);
 
 // Central normalization via Python (the reference implementation's own json module).

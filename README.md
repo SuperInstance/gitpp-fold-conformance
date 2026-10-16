@@ -52,8 +52,7 @@ We had exactly that, and the leaf fuzz was structurally incapable of finding it.
 | JavaScript | [`gitpp-js`](../gitpp-js) | |
 | C# / .NET 9 | [`gitpp-cs`](../gitpp-cs) | |
 | Perl 5 | [`gitpp-pl`](../gitpp-pl) | |
-
-The C99 port ([`gitpp-c`](../gitpp-c)) implements `recordLeaf` and `closureRoot` but **not** `derive`, so it is not in this suite. See *Known gap* below.
+| C99 | [`gitpp-c`](../gitpp-c) | joined in v0.2.0 |
 
 ## Running it
 
@@ -78,6 +77,10 @@ Exit code 0 = all ports agree with each other and with the spec.
 ```
 25 pass, 0 fail, 0 skip (of 25)
 ```
+
+**All 5 leaf ports now fold.** The C99 port gained `derive()` in
+`gitpp-c` v0.2.0, so the "7 ports" claim is no longer quietly "6 ports,
+one of which cannot fold".
 
 ## Bugs this suite found
 
@@ -127,8 +130,23 @@ Each port's `derive()` returns a differently-*shaped* result (C# returns bare lo
 
 State floats are compared **by value**, not by serialization: the spec pins leaf encoding (§3) but *not* state serialization, so JS's `JSON.stringify(1e-5)` → `0.00001` and Python's `repr(1e-5)` → `1e-05` are the same float64 and must compare equal.
 
-## Known gap
+## The gap that is now closed
 
-**`gitpp-c` (C99) has no `derive()`.** It implements `recordLeaf` and `closureRoot` only. The spec says 7 ports; only 4 of them can currently fold. Closing that means writing the streaming model in C99 — worth doing precisely because C is the port most likely to get the memory/ordering details wrong.
+Until `gitpp-c` v0.2.0, the C99 port had `recordLeaf` and `closureRoot` but
+**no `derive`**. The spec said 7 ports; only 4 could fold. Any claim of the
+form "all ports fold identically" was really about four.
 
-Until then, any claim of the form "all ports fold identically" should be read as "all four ports that can fold, fold identically."
+Writing it turned up four more bugs, all caught by this corpus before the
+code was ever pushed — which is the argument for having the suite:
+
+- passed `NULL` as the ancestry set, which the helper dereferences (segfault)
+- §5.3 distinctness written as a 0/1 flag tested against `< 2`, which is
+  always true, so it dropped **every** conflict
+- the displaced incumbent was recorded only when a previous winner existed,
+  so the *first* takeover silently dropped it
+- a conflict created by a losing record had `winner = NULL` and was
+  discarded — the winner is the incumbent, and that had to be recorded
+
+The leaf output was verified byte-identical to the pre-`derive` binary across
+80 corpus records, and the fold handles a 900-deep chain, `MAX_RECORDS`
+exactly, and over `MAX_RECORDS` (truncates rather than overflowing).
