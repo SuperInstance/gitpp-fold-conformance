@@ -7,7 +7,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const ROOT = "/tmp/derive-corpus";
+// Resolve against THIS file, not a hardcoded path and not the CWD. The
+// previous value pointed at a scratch directory, so the suite being verified
+// and the suite being pushed were different files -- which is how an
+// inverted-setters port passed a case built to catch it.
+const ROOT = new URL(".", import.meta.url).pathname.replace(/\/$/, "");
 const corpusText = readFileSync(`${ROOT}/cases.json`, "utf8");
 const corpus = JSON.parse(corpusText);
 
@@ -144,15 +148,27 @@ for (const c of corpus.cases) {
   // which is how the previous draft of this very check passed vacuously.
   const expectedObj = JSON.parse(expected);
   const expectsSetters = expectedObj.setters && Object.keys(expectedObj.setters).length > 0;
-  // results/expected are STRINGS, so strip by string surgery, not by destructure.
+  // results/expected are STRINGS, so compare them as strings.
+  //
+  // For a case that EXPECTS setters the WHOLE string is compared, values
+  // included. An earlier draft stripped the setters VALUES out of both sides,
+  // which made the suite blind to exactly the defect d26 exists to catch: an
+  // inverted ancestry reduction returns the OLDEST record as setter, and that
+  // is the bug class that shipped in four ports. Proven: a port returning
+  // setters{x:"a"} compared EQUAL to one returning setters{x:"b"}.
+  //
+  // For a case that does NOT expect setters, the field is stripped from both
+  // sides, so a port implementing §5.6 does not make every unrelated case look
+  // like a disagreement.
   const strip = (s) => s.replace(/,"has_setters":(true|false)/, "").replace(/,"setters":\{[^}]*\}/, "");
   const has = (s) => /"has_setters":true/.test(s);
+  const cmp = expectsSetters ? (a, b) => a === b : strip;
   const agreeWithEachOther = live.every((p) =>
     (!expectsSetters || has(results[p]) === has(results[live[0]])) &&
-    strip(results[p]) === strip(results[live[0]]));
+    cmp(results[p], results[live[0]]));
   const matchSpec = live.every((p) =>
     (!expectsSetters || has(results[p])) &&
-    strip(results[p]) === strip(expected));
+    cmp(results[p], expected));
   if (expectsSetters) {
     const missing = live.filter((p) => !has(results[p]));
     if (missing.length) console.log(`      MISSING setters (spec §5.6) in: ${missing.join(", ")}`);
