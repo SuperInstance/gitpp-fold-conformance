@@ -41,6 +41,7 @@ We had exactly that, and the leaf fuzz was structurally incapable of finding it.
 | **d23** | **self-parent (degenerate cycle)** | **§5.4** |
 | d24 | realistic mixed set | all |
 | **d25** | **numeric string vs number preserved through the fold** | **§3, §5.2** |
+| **d26** | **setter provenance for every key, contested or not** | **§5.6** |
 
 **Bold** = cases that caught a real bug.
 
@@ -75,8 +76,10 @@ Exit code 0 = all ports agree with each other and with the spec.
 ## Result
 
 ```
-25 pass, 0 fail, 0 skip (of 25)
+26 pass, 0 fail, 0 skip (of 26)
 ```
+
+The `26` is the whole corpus. `d26-setter-provenance` pins spec §5.6.
 
 **All 5 leaf ports now fold.** The C99 port gained `derive()` in
 `gitpp-c` v0.2.0, so the "7 ports" claim is no longer quietly "6 ports,
