@@ -1248,6 +1248,69 @@
         ],
         "orphans": []
       }
+    },
+    {
+      "name": "d26-setter-provenance",
+      "why": "Spec §5.6: derive() must return setters for EVERY key in state, not only contested ones. Before §5.6 the setter survived only inside conflicts[].winner, so an uncontested key exposed no provenance at all -- and a nudge parented on the wrong record landed or was silently discarded depending only on whether its own id sorted before the winner.",
+      "records": [
+        {
+          "id": "only",
+          "kind": "task",
+          "parents": [],
+          "effects": {
+            "status": "wip",
+            "owner": "me"
+          },
+          "reason": null
+        },
+        {
+          "id": "a",
+          "kind": "task",
+          "parents": [],
+          "effects": {
+            "x": 1
+          },
+          "reason": null
+        },
+        {
+          "id": "b",
+          "kind": "task",
+          "parents": [
+            "a"
+          ],
+          "effects": {
+            "x": 2
+          },
+          "reason": null
+        }
+      ],
+      "expect": {
+        "state": {
+          "status": "wip",
+          "owner": "me",
+          "x": 2
+        },
+        "setters": {
+          "status": "only",
+          "owner": "only",
+          "x": "b"
+        },
+        "order": [
+          "a",
+          "b",
+          "only"
+        ],
+        "conflicts": [
+          {
+            "key": "x",
+            "winner": "b",
+            "losers": [
+              "a"
+            ]
+          }
+        ],
+        "orphans": []
+      }
     }
   ]
 }

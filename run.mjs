@@ -81,6 +81,8 @@ def canon(v):
 d=json.load(sys.stdin)
 out={
  "state": canon(d.get("state",{})),
+ "setters": canon(d.get("setters",{})),
+ "has_setters": "setters" in d,
  "order": sorted(d.get("order",[])),
  "conflicts": sorted([
    {"key":c["key"],"winner":c["winner"],"losers":sorted(c["losers"])}
@@ -114,9 +116,47 @@ for (const c of corpus.cases) {
 
   if (live.length === 0) { skipped++; console.log(`  SKIP ${c.name} (all ports error)`); continue; }
 
-  const key = (s) => s;
-  const agreeWithEachOther = live.every(p => results[p] === results[live[0]]);
-  const matchSpec = live.every(p => results[p] === expected);
+  // A port that ERRORS must FAIL the case, not be filtered out of the live
+  // set. Filtering made a broken import path look like a clean pass: the JS
+  // wrapper had a wrong path, errored on every case, and was quietly excluded
+  // while the suite reported 26/26. That is the sixth time a comparison bug
+  // has produced a green suite in this project, and the most dangerous,
+  // because it removes a port from the comparison entirely.
+  const errored = names.filter((p) => results[p] === null);
+  if (errored.length) {
+    fail++;
+    failures.push({ name: c.name, why: c.why, agreeWithEachOther: false, matchSpec: false,
+                    errored, errs, expected, results });
+    console.log(`  FAIL ${c.name}  [port(s) errored: ${errored.join(", ")}]`);
+    for (const p of errored) console.log(`      ${p}: ${String(errs[p]).slice(0, 140)}`);
+    continue;
+  }
+
+  // §5.6 `setters` is additive, but PRESENCE is a first-class check. A case
+  // that expects setters must FAIL for a port that omits the field, rather
+  // than comparing {} against {} and calling it a pass.
+  //
+  // Fourth time a comparison bug has produced a green suite here. Rule:
+  // absent and empty are different answers; a required field is checked for
+  // presence independently of its value.
+  // `expected` is a STRING (the normalizer prints compact JSON). Reading
+  // .setters off it yields undefined, so the check silently never activates --
+  // which is how the previous draft of this very check passed vacuously.
+  const expectedObj = JSON.parse(expected);
+  const expectsSetters = expectedObj.setters && Object.keys(expectedObj.setters).length > 0;
+  // results/expected are STRINGS, so strip by string surgery, not by destructure.
+  const strip = (s) => s.replace(/,"has_setters":(true|false)/, "").replace(/,"setters":\{[^}]*\}/, "");
+  const has = (s) => /"has_setters":true/.test(s);
+  const agreeWithEachOther = live.every((p) =>
+    (!expectsSetters || has(results[p]) === has(results[live[0]])) &&
+    strip(results[p]) === strip(results[live[0]]));
+  const matchSpec = live.every((p) =>
+    (!expectsSetters || has(results[p])) &&
+    strip(results[p]) === strip(expected));
+  if (expectsSetters) {
+    const missing = live.filter((p) => !has(results[p]));
+    if (missing.length) console.log(`      MISSING setters (spec §5.6) in: ${missing.join(", ")}`);
+  }
 
   if (agreeWithEachOther && matchSpec) {
     pass++; console.log(`  PASS ${c.name}`);

@@ -19,6 +19,7 @@ class Program {
     }).ToArray();
     var payload = new {
       state = r.State,
+      setters = r.Setters,
       order = r.Order.ToArray(),
       conflicts,
       orphans = r.Orphans.OrderBy(x => x, StringComparer.Ordinal).ToArray()
