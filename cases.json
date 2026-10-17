@@ -1,1484 +1,1484 @@
 {
-  "version": "0.1.0",
-  "description": "Cross-port DERIVE conformance corpus. Unlike the leaf fuzz (which tests record ENCODING), these cases test fold SEMANTICS: ancestry reduction, class precedence, tie-breaks, orphans, cycles. Every port must produce the same normalized {state, order, conflicts, orphans}.",
-  "cases": [
+ "version": "0.1.0",
+ "description": "Cross-port DERIVE conformance corpus. Unlike the leaf fuzz (which tests record ENCODING), these cases test fold SEMANTICS: ancestry reduction, class precedence, tie-breaks, orphans, cycles. Every port must produce the same normalized {state, order, conflicts, orphans}.",
+ "cases": [
+  {
+   "name": "d01-empty",
+   "why": "Empty set. state={}, order=[], conflicts=[], orphans=[]",
+   "records": [],
+   "expect": {
+    "state": {},
+    "order": [],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d02-single-root",
+   "why": "One record, no parents.",
+   "records": [
     {
-      "name": "d01-empty",
-      "why": "Empty set. state={}, order=[], conflicts=[], orphans=[]",
-      "records": [],
-      "expect": {
-        "state": {},
-        "order": [],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d02-single-root",
-      "why": "One record, no parents.",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 1
-        },
-        "order": [
-          "a"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d03-ancestry-descendant-wins",
-      "why": "THE BUG THAT BROKE PYTHON v0.2.1. Linear chain a->b->c, all tasks, all set x. Most-derived (c) must win. The inverted test made the OLDEST (a) win.",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "b",
-          "kind": "task",
-          "parents": [
-            "a"
-          ],
-          "effects": {
-            "x": 10
-          },
-          "reason": null
-        },
-        {
-          "id": "c",
-          "kind": "task",
-          "parents": [
-            "b"
-          ],
-          "effects": {
-            "x": 100
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 100
-        },
-        "order": [
-          "a",
-          "b",
-          "c"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "c",
-            "losers": [
-              "a",
-              "b"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d04-ancestry-transitive-3-deep",
-      "why": "Deeper chain, same rule. d=e=f=g, all tasks.",
-      "records": [
-        {
-          "id": "d",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "e",
-          "kind": "task",
-          "parents": [
-            "d"
-          ],
-          "effects": {
-            "x": 2
-          },
-          "reason": null
-        },
-        {
-          "id": "f",
-          "kind": "task",
-          "parents": [
-            "e"
-          ],
-          "effects": {
-            "x": 3
-          },
-          "reason": null
-        },
-        {
-          "id": "g",
-          "kind": "task",
-          "parents": [
-            "f"
-          ],
-          "effects": {
-            "x": 4
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 4
-        },
-        "order": [
-          "d",
-          "e",
-          "f",
-          "g"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "g",
-            "losers": [
-              "d",
-              "e",
-              "f"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d05-class-precedence-override-beats-task",
-      "why": "override > task regardless of ancestry. An override that is an ANCESTOR of a task still wins.",
-      "records": [
-        {
-          "id": "o",
-          "kind": "override",
-          "parents": [],
-          "effects": {
-            "x": "from-override"
-          },
-          "reason": null
-        },
-        {
-          "id": "t",
-          "kind": "task",
-          "parents": [
-            "o"
-          ],
-          "effects": {
-            "x": "from-task"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "from-override"
-        },
-        "order": [
-          "o",
-          "t"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "o",
-            "losers": [
-              "t"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d06-class-precedence-task-beats-witness-descent",
-      "why": "Spec §5.1: 'even when the witness is a descendant of the task'. This is the sharpest class-precedence case — a DESCENDANT witness must still lose to its ANCESTOR task.",
-      "records": [
-        {
-          "id": "t",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "task"
-          },
-          "reason": null
-        },
-        {
-          "id": "w",
-          "kind": "witness",
-          "parents": [
-            "t"
-          ],
-          "effects": {
-            "x": "witness"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "task"
-        },
-        "order": [
-          "t",
-          "w"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "t",
-            "losers": [
-              "w"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d07-uncontested-witness-reaches-state",
-      "why": "Spec §5.1: 'Uncontested witnesses still reach state (they are ambient truth).' A witness alone sets the key.",
-      "records": [
-        {
-          "id": "w",
-          "kind": "witness",
-          "parents": [],
-          "effects": {
-            "x": "witness-alone"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "witness-alone"
-        },
-        "order": [
-          "w"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d08-three-classes-same-key",
-      "why": "override + task + witness all on x. override wins, both others are losers.",
-      "records": [
-        {
-          "id": "o",
-          "kind": "override",
-          "parents": [],
-          "effects": {
-            "x": "o"
-          },
-          "reason": null
-        },
-        {
-          "id": "t",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "t"
-          },
-          "reason": null
-        },
-        {
-          "id": "w",
-          "kind": "witness",
-          "parents": [],
-          "effects": {
-            "x": "w"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "o"
-        },
-        "order": [
-          "o",
-          "t",
-          "w"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "o",
-            "losers": [
-              "t",
-              "w"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d09-sibling-tasks-tiebreak-smallest-id",
-      "why": "Two tasks, no ancestry relation (both children of a). Tie-break falls to smallest id by code point.",
-      "records": [
-        {
-          "id": "p",
-          "kind": "task",
-          "parents": [],
-          "effects": {},
-          "reason": null
-        },
-        {
-          "id": "s2",
-          "kind": "task",
-          "parents": [
-            "p"
-          ],
-          "effects": {
-            "x": "second"
-          },
-          "reason": null
-        },
-        {
-          "id": "s1",
-          "kind": "task",
-          "parents": [
-            "p"
-          ],
-          "effects": {
-            "x": "first"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "first"
-        },
-        "order": [
-          "p",
-          "s1",
-          "s2"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "s1",
-            "losers": [
-              "s2"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d10-diamond-dag",
-      "why": "Diamond: root -> two branches -> join. Join is the most-derived for x.",
-      "records": [
-        {
-          "id": "r",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "root"
-          },
-          "reason": null
-        },
-        {
-          "id": "l",
-          "kind": "task",
-          "parents": [
-            "r"
-          ],
-          "effects": {},
-          "reason": null
-        },
-        {
-          "id": "m",
-          "kind": "task",
-          "parents": [
-            "r"
-          ],
-          "effects": {},
-          "reason": null
-        },
-        {
-          "id": "j",
-          "kind": "task",
-          "parents": [
-            "l",
-            "m"
-          ],
-          "effects": {
-            "x": "join"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "join"
-        },
-        "order": [
-          "j",
-          "l",
-          "m",
-          "r"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "j",
-            "losers": [
-              "r"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d11-orphan-missing-parent",
-      "why": "Orphan: record references a parent not in the set. Its effect is excluded; it is preserved in the orphans list.",
-      "records": [
-        {
-          "id": "ok",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "orph",
-          "kind": "task",
-          "parents": [
-            "ghost"
-          ],
-          "effects": {
-            "y": 99
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 1
-        },
-        "order": [
-          "ok"
-        ],
-        "conflicts": [],
-        "orphans": [
-          "orph"
-        ]
-      }
-    },
-    {
-      "name": "d12-orphan-descendant-not-auto-orphaned",
-      "why": "Spec §5.5: 'The orphan's descendants are NOT auto-orphaned (the fold runs on what stands).' A child of an orphan still folds.",
-      "records": [
-        {
-          "id": "orph",
-          "kind": "task",
-          "parents": [
-            "ghost"
-          ],
-          "effects": {
-            "y": 99
-          },
-          "reason": null
-        },
-        {
-          "id": "child",
-          "kind": "task",
-          "parents": [
-            "orph"
-          ],
-          "effects": {
-            "z": 7
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "z": 7
-        },
-        "order": [
-          "child"
-        ],
-        "conflicts": [],
-        "orphans": [
-          "orph"
-        ]
-      }
-    },
-    {
-      "name": "d13-cycle-two",
-      "why": "Cycle a<->b. Both excluded from the fold, both reported as orphans.",
-      "records": [
-        {
-          "id": "ca",
-          "kind": "task",
-          "parents": [
-            "cb"
-          ],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "cb",
-          "kind": "task",
-          "parents": [
-            "ca"
-          ],
-          "effects": {
-            "x": 2
-          },
-          "reason": null
-        },
-        {
-          "id": "ok",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "y": 3
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "y": 3
-        },
-        "order": [
-          "ok"
-        ],
-        "conflicts": [],
-        "orphans": [
-          "ca",
-          "cb"
-        ]
-      }
-    },
-    {
-      "name": "d14-cycle-three-with-clean-child",
-      "why": "3-cycle plus a record that depends on the cycle. Tests that cycle exclusion propagates correctly.",
-      "records": [
-        {
-          "id": "a1",
-          "kind": "task",
-          "parents": [
-            "a3"
-          ],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "a2",
-          "kind": "task",
-          "parents": [
-            "a1"
-          ],
-          "effects": {
-            "x": 2
-          },
-          "reason": null
-        },
-        {
-          "id": "a3",
-          "kind": "task",
-          "parents": [
-            "a2"
-          ],
-          "effects": {
-            "x": 3
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {},
-        "order": [],
-        "conflicts": [],
-        "orphans": [
-          "a1",
-          "a2",
-          "a3"
-        ]
-      }
-    },
-    {
-      "name": "d15-multi-key-partial-overlap",
-      "why": "Records set overlapping but not identical key sets. Each key resolves independently.",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1,
-            "y": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "b",
-          "kind": "task",
-          "parents": [
-            "a"
-          ],
-          "effects": {
-            "y": 2,
-            "z": 2
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 1,
-          "y": 2,
-          "z": 2
-        },
-        "order": [
-          "a",
-          "b"
-        ],
-        "conflicts": [
-          {
-            "key": "y",
-            "winner": "b",
-            "losers": [
-              "a"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d16-same-value-no-conflict",
-      "why": "Two records set the same key to the SAME value. No conflict emitted (2+ DISTINCT values required).",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 5
-          },
-          "reason": null
-        },
-        {
-          "id": "b",
-          "kind": "task",
-          "parents": [
-            "a"
-          ],
-          "effects": {
-            "x": 5
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 5
-        },
-        "order": [
-          "a",
-          "b"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d17-non-bmp-ids",
-      "why": "Non-BMP ids sort by code point (U+1F680 = 128640), NOT by UTF-16 code unit. A port using JS string < would sort the rocket before ASCII.",
-      "records": [
-        {
-          "id": "🚀",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "rocket"
-          },
-          "reason": null
-        },
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "ascii"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "ascii"
-        },
-        "order": [
-          "a",
-          "🚀"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "a",
-            "losers": [
-              "🚀"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d18-nested-effects",
-      "why": "Nested objects and arrays in effects. Values must survive the fold byte-identically.",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "cfg": {
-              "n": [
-                1,
-                2,
-                3
-              ],
-              "deep": {
-                "k": "v"
-              }
-            }
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "cfg": {
-            "n": [
-              1,
-              2,
-              3
-            ],
-            "deep": {
-              "k": "v"
-            }
-          }
-        },
-        "order": [
-          "a"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d19-float-edge-in-effects",
-      "why": "Float64 edge values in effects. Exercises the §3 leaf-number encoding through the FOLD path (not just the leaf path).",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "tiny": 1e-05,
-            "huge": 1.5e+20,
-            "negzero": -0.0,
-            "int": 42
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "tiny": 1e-05,
-          "huge": 1.5e+20,
-          "negzero": 0,
-          "int": 42
-        },
-        "order": [
-          "a"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d20-wide-fanout",
-      "why": "One root, 20 children, all setting the same key. Exercises the tie-break at scale.",
-      "records": [
-        {
-          "id": "root",
-          "kind": "task",
-          "parents": [],
-          "effects": {},
-          "reason": null
-        },
-        {
-          "id": "c01",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "c02",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 2
-          },
-          "reason": null
-        },
-        {
-          "id": "c03",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 3
-          },
-          "reason": null
-        },
-        {
-          "id": "c04",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 4
-          },
-          "reason": null
-        },
-        {
-          "id": "c05",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 5
-          },
-          "reason": null
-        },
-        {
-          "id": "c06",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 6
-          },
-          "reason": null
-        },
-        {
-          "id": "c07",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 7
-          },
-          "reason": null
-        },
-        {
-          "id": "c08",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 8
-          },
-          "reason": null
-        },
-        {
-          "id": "c09",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 9
-          },
-          "reason": null
-        },
-        {
-          "id": "c10",
-          "kind": "task",
-          "parents": [
-            "root"
-          ],
-          "effects": {
-            "x": 10
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": 1
-        },
-        "order": [
-          "c01",
-          "c02",
-          "c03",
-          "c04",
-          "c05",
-          "c06",
-          "c07",
-          "c08",
-          "c09",
-          "c10",
-          "root"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "c01",
-            "losers": [
-              "c02",
-              "c03",
-              "c04",
-              "c05",
-              "c06",
-              "c07",
-              "c08",
-              "c09",
-              "c10"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d21-override-descendant-of-task",
-      "why": "An override that DESCENDS from a task. Class precedence is absolute, so the override still wins even though the task is the ancestor.",
-      "records": [
-        {
-          "id": "t",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": "task"
-          },
-          "reason": null
-        },
-        {
-          "id": "o",
-          "kind": "override",
-          "parents": [
-            "t"
-          ],
-          "effects": {
-            "x": "override"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "override"
-        },
-        "order": [
-          "t",
-          "o"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "o",
-            "losers": [
-              "t"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d22-empty-effects-chain",
-      "why": "Records that set no keys. State stays empty but order is still computed.",
-      "records": [
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {},
-          "reason": null
-        },
-        {
-          "id": "b",
-          "kind": "task",
-          "parents": [
-            "a"
-          ],
-          "effects": {},
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {},
-        "order": [
-          "a",
-          "b"
-        ],
-        "conflicts": [],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d23-self-parent-cycle",
-      "why": "A record that is its own parent. Degenerate cycle; must not infinite-loop.",
-      "records": [
-        {
-          "id": "self",
-          "kind": "task",
-          "parents": [
-            "self"
-          ],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {},
-        "order": [],
-        "conflicts": [],
-        "orphans": [
-          "self"
-        ]
-      }
-    },
-    {
-      "name": "d24-mixed-realistic",
-      "why": "A realistic mixed set: root task, descendant task, witness, override, and an orphan. Everything at once. NOTE: `assignee` gets its OWN conflict because issue-1 sets it to null and override-1 sets it to 'casey' — 2 distinct values, so spec §5.3 requires it even though the two records do not compete head-to-head on class.",
-      "records": [
-        {
-          "id": "issue-1",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "status": "open",
-            "assignee": null
-          },
-          "reason": "filed"
-        },
-        {
-          "id": "issue-2",
-          "kind": "task",
-          "parents": [
-            "issue-1"
-          ],
-          "effects": {
-            "status": "wip"
-          },
-          "reason": "started"
-        },
-        {
-          "id": "issue-3",
-          "kind": "task",
-          "parents": [
-            "issue-2"
-          ],
-          "effects": {
-            "status": "done"
-          },
-          "reason": "finished"
-        },
-        {
-          "id": "note-1",
-          "kind": "witness",
-          "parents": [
-            "issue-2"
-          ],
-          "effects": {
-            "status": "blocked"
-          },
-          "reason": "saw a blocker"
-        },
-        {
-          "id": "override-1",
-          "kind": "override",
-          "parents": [
-            "issue-3"
-          ],
-          "effects": {
-            "status": "shipped",
-            "assignee": "casey"
-          },
-          "reason": "released"
-        },
-        {
-          "id": "orphan-1",
-          "kind": "task",
-          "parents": [
-            "deleted"
-          ],
-          "effects": {
-            "status": "ghost"
-          },
-          "reason": "bad ref"
-        }
-      ],
-      "expect": {
-        "state": {
-          "status": "shipped",
-          "assignee": "casey"
-        },
-        "order": [
-          "issue-1",
-          "issue-2",
-          "issue-3",
-          "note-1",
-          "override-1"
-        ],
-        "conflicts": [
-          {
-            "key": "assignee",
-            "winner": "override-1",
-            "losers": [
-              "issue-1"
-            ]
-          },
-          {
-            "key": "status",
-            "winner": "override-1",
-            "losers": [
-              "issue-1",
-              "issue-2",
-              "issue-3",
-              "note-1"
-            ]
-          }
-        ],
-        "orphans": [
-          "orphan-1"
-        ]
-      }
-    },
-    {
-      "name": "d25-numeric-string-vs-number",
-      "why": "A record whose effect is the STRING \"1.5e20\" must not be confused with the NUMBER 1.5e20. JSON::PP hands Perl a bare scalar for both, so looks_like_number() was true for both and the string was emitted UNQUOTED -- a leaf defect. Here the string record is the descendant, so it wins by §5.2, and the state must carry the STRING through untouched. If a port coerces it to a number, state.x comes back as 1.5e20 and this case fails -- which is exactly the regression we want to catch.",
-      "records": [
-        {
-          "id": "num",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1.5e+20
-          },
-          "reason": null
-        },
-        {
-          "id": "str",
-          "kind": "task",
-          "parents": [
-            "num"
-          ],
-          "effects": {
-            "x": "1.5e20"
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "x": "1.5e20"
-        },
-        "order": [
-          "num",
-          "str"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "str",
-            "losers": [
-              "num"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d26-setter-provenance",
-      "why": "Spec §5.6: derive() must return setters for EVERY key in state, not only contested ones. Before §5.6 the setter survived only inside conflicts[].winner, so an uncontested key exposed no provenance at all -- and a nudge parented on the wrong record landed or was silently discarded depending only on whether its own id sorted before the winner.",
-      "records": [
-        {
-          "id": "only",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "status": "wip",
-            "owner": "me"
-          },
-          "reason": null
-        },
-        {
-          "id": "a",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "x": 1
-          },
-          "reason": null
-        },
-        {
-          "id": "b",
-          "kind": "task",
-          "parents": [
-            "a"
-          ],
-          "effects": {
-            "x": 2
-          },
-          "reason": null
-        }
-      ],
-      "expect": {
-        "state": {
-          "status": "wip",
-          "owner": "me",
-          "x": 2
-        },
-        "setters": {
-          "status": "only",
-          "owner": "only",
-          "x": "b"
-        },
-        "order": [
-          "a",
-          "b",
-          "only"
-        ],
-        "conflicts": [
-          {
-            "key": "x",
-            "winner": "b",
-            "losers": [
-              "a"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d27-decision-receipt-inert",
-      "why": "A decision receipt is a record with effects:{} carrying a gate verdict in reason. It must be STATE-INERT: SS5.2 iterates 'for each key K that R sets', so a record setting no key can never become a setter, create a conflict, or change state. This is the property that makes the receipt safe to write unconditionally, and it is a claim about the FOLD, not about one port. Also pins that a receipt's presence changes the topo ORDER (it is still a record in the set) while leaving state, setters and the conflict ledger byte-identical. NB: t1 sets owner=null and t2 sets owner=\"me\", so the ledger carries TWO conflicts. The receipt itself contributes neither: n1 sets no key, so it can never be a winner or a loser.",
-      "records": [
-        {
-          "id": "t1",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "status": "wip",
-            "owner": null
-          },
-          "reason": "started"
-        },
-        {
-          "id": "n1",
-          "kind": "witness",
-          "parents": [
-            "t1"
-          ],
-          "effects": {},
-          "reason": "gate:act should_apply=0.93 parent=t1-is-setter"
-        },
-        {
-          "id": "t2",
-          "kind": "task",
-          "parents": [
-            "n1"
-          ],
-          "effects": {
-            "status": "done",
-            "owner": "me"
-          },
-          "reason": "work complete"
-        }
-      ],
-      "expect": {
-        "state": {
-          "status": "done",
-          "owner": "me"
-        },
-        "setters": {
-          "status": "t2",
-          "owner": "t2"
-        },
-        "order": [
-          "t1",
-          "n1",
-          "t2"
-        ],
-        "conflicts": [
-          {
-            "key": "owner",
-            "winner": "t2",
-            "losers": [
-              "t1"
-            ]
-          },
-          {
-            "key": "status",
-            "winner": "t2",
-            "losers": [
-              "t1"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d28-licensed-action-applies",
-      "why": "The receipt IS the parent of the action. With it present the action applies; without it (d29) the same action is an orphan and is excluded from state. Together the two cases are the cross-port proof that a decision structurally LICENCES an action -- you cannot hold the action without the record that licensed it, and that is a property of the FOLD, not of one port's receipt helper.",
-      "records": [
-        {
-          "id": "t1",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "status": "wip"
-          },
-          "reason": "started"
-        },
-        {
-          "id": "receipt-0002",
-          "kind": "witness",
-          "parents": [
-            "t1"
-          ],
-          "effects": {},
-          "reason": "gate:act should_apply=0.93"
-        },
-        {
-          "id": "n2",
-          "kind": "task",
-          "parents": [
-            "receipt-0002"
-          ],
-          "effects": {
-            "status": "done"
-          },
-          "reason": "work complete"
-        }
-      ],
-      "expect": {
-        "state": {
-          "status": "done"
-        },
-        "setters": {
-          "status": "n2"
-        },
-        "order": [
-          "t1",
-          "receipt-0002",
-          "n2"
-        ],
-        "conflicts": [
-          {
-            "key": "status",
-            "winner": "n2",
-            "losers": [
-              "t1"
-            ]
-          }
-        ],
-        "orphans": []
-      }
-    },
-    {
-      "name": "d29-unlicensed-action-is-orphaned",
-      "why": "The same action as d28 with the receipt DELETED. Its parent no longer exists, so it is an orphan: excluded from state, preserved in the orphans list, absent from the order. The state is unchanged from the pre-action value, which is what makes a blocked nudge a no-op on state while still leaving a receipt behind.",
-      "records": [
-        {
-          "id": "t1",
-          "kind": "task",
-          "parents": [],
-          "effects": {
-            "status": "wip"
-          },
-          "reason": "started"
-        },
-        {
-          "id": "n2",
-          "kind": "task",
-          "parents": [
-            "receipt-0002"
-          ],
-          "effects": {
-            "status": "done"
-          },
-          "reason": "work complete"
-        }
-      ],
-      "expect": {
-        "state": {
-          "status": "wip"
-        },
-        "setters": {
-          "status": "t1"
-        },
-        "order": [
-          "t1"
-        ],
-        "conflicts": [],
-        "orphans": [
-          "n2"
-        ]
-      }
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
     }
-  ]
+   ],
+   "expect": {
+    "state": {
+     "x": 1
+    },
+    "order": [
+     "a"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d03-ancestry-descendant-wins",
+   "why": "THE BUG THAT BROKE PYTHON v0.2.1. Linear chain a->b->c, all tasks, all set x. Most-derived (c) must win. The inverted test made the OLDEST (a) win.",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "b",
+     "kind": "task",
+     "parents": [
+      "a"
+     ],
+     "effects": {
+      "x": 10
+     },
+     "reason": null
+    },
+    {
+     "id": "c",
+     "kind": "task",
+     "parents": [
+      "b"
+     ],
+     "effects": {
+      "x": 100
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 100
+    },
+    "order": [
+     "a",
+     "b",
+     "c"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "c",
+      "losers": [
+       "a",
+       "b"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d04-ancestry-transitive-3-deep",
+   "why": "Deeper chain, same rule. d=e=f=g, all tasks.",
+   "records": [
+    {
+     "id": "d",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "e",
+     "kind": "task",
+     "parents": [
+      "d"
+     ],
+     "effects": {
+      "x": 2
+     },
+     "reason": null
+    },
+    {
+     "id": "f",
+     "kind": "task",
+     "parents": [
+      "e"
+     ],
+     "effects": {
+      "x": 3
+     },
+     "reason": null
+    },
+    {
+     "id": "g",
+     "kind": "task",
+     "parents": [
+      "f"
+     ],
+     "effects": {
+      "x": 4
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 4
+    },
+    "order": [
+     "d",
+     "e",
+     "f",
+     "g"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "g",
+      "losers": [
+       "d",
+       "e",
+       "f"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d05-class-precedence-override-beats-task",
+   "why": "override > task regardless of ancestry. An override that is an ANCESTOR of a task still wins.",
+   "records": [
+    {
+     "id": "o",
+     "kind": "override",
+     "parents": [],
+     "effects": {
+      "x": "from-override"
+     },
+     "reason": null
+    },
+    {
+     "id": "t",
+     "kind": "task",
+     "parents": [
+      "o"
+     ],
+     "effects": {
+      "x": "from-task"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "from-override"
+    },
+    "order": [
+     "o",
+     "t"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "o",
+      "losers": [
+       "t"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d06-class-precedence-task-beats-witness-descent",
+   "why": "Spec §5.1: 'even when the witness is a descendant of the task'. This is the sharpest class-precedence case — a DESCENDANT witness must still lose to its ANCESTOR task.",
+   "records": [
+    {
+     "id": "t",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "task"
+     },
+     "reason": null
+    },
+    {
+     "id": "w",
+     "kind": "witness",
+     "parents": [
+      "t"
+     ],
+     "effects": {
+      "x": "witness"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "task"
+    },
+    "order": [
+     "t",
+     "w"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "t",
+      "losers": [
+       "w"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d07-uncontested-witness-reaches-state",
+   "why": "Spec §5.1: 'Uncontested witnesses still reach state (they are ambient truth).' A witness alone sets the key.",
+   "records": [
+    {
+     "id": "w",
+     "kind": "witness",
+     "parents": [],
+     "effects": {
+      "x": "witness-alone"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "witness-alone"
+    },
+    "order": [
+     "w"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d08-three-classes-same-key",
+   "why": "override + task + witness all on x. override wins, both others are losers.",
+   "records": [
+    {
+     "id": "o",
+     "kind": "override",
+     "parents": [],
+     "effects": {
+      "x": "o"
+     },
+     "reason": null
+    },
+    {
+     "id": "t",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "t"
+     },
+     "reason": null
+    },
+    {
+     "id": "w",
+     "kind": "witness",
+     "parents": [],
+     "effects": {
+      "x": "w"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "o"
+    },
+    "order": [
+     "o",
+     "t",
+     "w"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "o",
+      "losers": [
+       "t",
+       "w"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d09-sibling-tasks-tiebreak-smallest-id",
+   "why": "Two tasks, no ancestry relation (both children of a). Tie-break falls to smallest id by code point.",
+   "records": [
+    {
+     "id": "p",
+     "kind": "task",
+     "parents": [],
+     "effects": {},
+     "reason": null
+    },
+    {
+     "id": "s2",
+     "kind": "task",
+     "parents": [
+      "p"
+     ],
+     "effects": {
+      "x": "second"
+     },
+     "reason": null
+    },
+    {
+     "id": "s1",
+     "kind": "task",
+     "parents": [
+      "p"
+     ],
+     "effects": {
+      "x": "first"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "first"
+    },
+    "order": [
+     "p",
+     "s1",
+     "s2"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "s1",
+      "losers": [
+       "s2"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d10-diamond-dag",
+   "why": "Diamond: root -> two branches -> join. Join is the most-derived for x. Order is Kahn, smallest-id-first WITHIN a tier (5.4): r is a root, l and m become available once r is emitted, and the join j only after both.",
+   "records": [
+    {
+     "id": "r",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "root"
+     },
+     "reason": null
+    },
+    {
+     "id": "l",
+     "kind": "task",
+     "parents": [
+      "r"
+     ],
+     "effects": {},
+     "reason": null
+    },
+    {
+     "id": "m",
+     "kind": "task",
+     "parents": [
+      "r"
+     ],
+     "effects": {},
+     "reason": null
+    },
+    {
+     "id": "j",
+     "kind": "task",
+     "parents": [
+      "l",
+      "m"
+     ],
+     "effects": {
+      "x": "join"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "join"
+    },
+    "order": [
+     "r",
+     "l",
+     "m",
+     "j"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "j",
+      "losers": [
+       "r"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d11-orphan-missing-parent",
+   "why": "Orphan: record references a parent not in the set. Its effect is excluded; it is preserved in the orphans list.",
+   "records": [
+    {
+     "id": "ok",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "orph",
+     "kind": "task",
+     "parents": [
+      "ghost"
+     ],
+     "effects": {
+      "y": 99
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 1
+    },
+    "order": [
+     "ok"
+    ],
+    "conflicts": [],
+    "orphans": [
+     "orph"
+    ]
+   }
+  },
+  {
+   "name": "d12-orphan-descendant-not-auto-orphaned",
+   "why": "Spec §5.5: 'The orphan's descendants are NOT auto-orphaned (the fold runs on what stands).' A child of an orphan still folds.",
+   "records": [
+    {
+     "id": "orph",
+     "kind": "task",
+     "parents": [
+      "ghost"
+     ],
+     "effects": {
+      "y": 99
+     },
+     "reason": null
+    },
+    {
+     "id": "child",
+     "kind": "task",
+     "parents": [
+      "orph"
+     ],
+     "effects": {
+      "z": 7
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "z": 7
+    },
+    "order": [
+     "child"
+    ],
+    "conflicts": [],
+    "orphans": [
+     "orph"
+    ]
+   }
+  },
+  {
+   "name": "d13-cycle-two",
+   "why": "Cycle a<->b. Both excluded from the fold, both reported as orphans.",
+   "records": [
+    {
+     "id": "ca",
+     "kind": "task",
+     "parents": [
+      "cb"
+     ],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "cb",
+     "kind": "task",
+     "parents": [
+      "ca"
+     ],
+     "effects": {
+      "x": 2
+     },
+     "reason": null
+    },
+    {
+     "id": "ok",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "y": 3
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "y": 3
+    },
+    "order": [
+     "ok"
+    ],
+    "conflicts": [],
+    "orphans": [
+     "ca",
+     "cb"
+    ]
+   }
+  },
+  {
+   "name": "d14-cycle-three-with-clean-child",
+   "why": "3-cycle plus a record that depends on the cycle. Tests that cycle exclusion propagates correctly.",
+   "records": [
+    {
+     "id": "a1",
+     "kind": "task",
+     "parents": [
+      "a3"
+     ],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "a2",
+     "kind": "task",
+     "parents": [
+      "a1"
+     ],
+     "effects": {
+      "x": 2
+     },
+     "reason": null
+    },
+    {
+     "id": "a3",
+     "kind": "task",
+     "parents": [
+      "a2"
+     ],
+     "effects": {
+      "x": 3
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {},
+    "order": [],
+    "conflicts": [],
+    "orphans": [
+     "a1",
+     "a2",
+     "a3"
+    ]
+   }
+  },
+  {
+   "name": "d15-multi-key-partial-overlap",
+   "why": "Records set overlapping but not identical key sets. Each key resolves independently.",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1,
+      "y": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "b",
+     "kind": "task",
+     "parents": [
+      "a"
+     ],
+     "effects": {
+      "y": 2,
+      "z": 2
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 1,
+     "y": 2,
+     "z": 2
+    },
+    "order": [
+     "a",
+     "b"
+    ],
+    "conflicts": [
+     {
+      "key": "y",
+      "winner": "b",
+      "losers": [
+       "a"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d16-same-value-no-conflict",
+   "why": "Two records set the same key to the SAME value. No conflict emitted (2+ DISTINCT values required).",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 5
+     },
+     "reason": null
+    },
+    {
+     "id": "b",
+     "kind": "task",
+     "parents": [
+      "a"
+     ],
+     "effects": {
+      "x": 5
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 5
+    },
+    "order": [
+     "a",
+     "b"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d17-non-bmp-ids",
+   "why": "Non-BMP ids sort by code point (U+1F680 = 128640), NOT by UTF-16 code unit. A port using JS string < would sort the rocket before ASCII.",
+   "records": [
+    {
+     "id": "🚀",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "rocket"
+     },
+     "reason": null
+    },
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "ascii"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "ascii"
+    },
+    "order": [
+     "a",
+     "🚀"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "a",
+      "losers": [
+       "🚀"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d18-nested-effects",
+   "why": "Nested objects and arrays in effects. Values must survive the fold byte-identically.",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "cfg": {
+       "n": [
+        1,
+        2,
+        3
+       ],
+       "deep": {
+        "k": "v"
+       }
+      }
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "cfg": {
+      "n": [
+       1,
+       2,
+       3
+      ],
+      "deep": {
+       "k": "v"
+      }
+     }
+    },
+    "order": [
+     "a"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d19-float-edge-in-effects",
+   "why": "Float64 edge values in effects. Exercises the §3 leaf-number encoding through the FOLD path (not just the leaf path).",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "tiny": 1e-05,
+      "huge": 1.5e+20,
+      "negzero": -0.0,
+      "int": 42
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "tiny": 1e-05,
+     "huge": 1.5e+20,
+     "negzero": 0,
+     "int": 42
+    },
+    "order": [
+     "a"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d20-wide-fanout",
+   "why": "One root, 20 children, all setting the same key. Exercises the tie-break at scale. Order is Kahn (5.4): root first, then its ten children in id order. The previous stored order was alphabetical, left over from a normaliser that sorted away topological order.",
+   "records": [
+    {
+     "id": "root",
+     "kind": "task",
+     "parents": [],
+     "effects": {},
+     "reason": null
+    },
+    {
+     "id": "c01",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "c02",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 2
+     },
+     "reason": null
+    },
+    {
+     "id": "c03",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 3
+     },
+     "reason": null
+    },
+    {
+     "id": "c04",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 4
+     },
+     "reason": null
+    },
+    {
+     "id": "c05",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 5
+     },
+     "reason": null
+    },
+    {
+     "id": "c06",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 6
+     },
+     "reason": null
+    },
+    {
+     "id": "c07",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 7
+     },
+     "reason": null
+    },
+    {
+     "id": "c08",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 8
+     },
+     "reason": null
+    },
+    {
+     "id": "c09",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 9
+     },
+     "reason": null
+    },
+    {
+     "id": "c10",
+     "kind": "task",
+     "parents": [
+      "root"
+     ],
+     "effects": {
+      "x": 10
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": 1
+    },
+    "order": [
+     "root",
+     "c01",
+     "c02",
+     "c03",
+     "c04",
+     "c05",
+     "c06",
+     "c07",
+     "c08",
+     "c09",
+     "c10"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "c01",
+      "losers": [
+       "c02",
+       "c03",
+       "c04",
+       "c05",
+       "c06",
+       "c07",
+       "c08",
+       "c09",
+       "c10"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d21-override-descendant-of-task",
+   "why": "An override that DESCENDS from a task. Class precedence is absolute, so the override still wins even though the task is the ancestor.",
+   "records": [
+    {
+     "id": "t",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": "task"
+     },
+     "reason": null
+    },
+    {
+     "id": "o",
+     "kind": "override",
+     "parents": [
+      "t"
+     ],
+     "effects": {
+      "x": "override"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "override"
+    },
+    "order": [
+     "t",
+     "o"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "o",
+      "losers": [
+       "t"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d22-empty-effects-chain",
+   "why": "Records that set no keys. State stays empty but order is still computed.",
+   "records": [
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {},
+     "reason": null
+    },
+    {
+     "id": "b",
+     "kind": "task",
+     "parents": [
+      "a"
+     ],
+     "effects": {},
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {},
+    "order": [
+     "a",
+     "b"
+    ],
+    "conflicts": [],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d23-self-parent-cycle",
+   "why": "A record that is its own parent. Degenerate cycle; must not infinite-loop.",
+   "records": [
+    {
+     "id": "self",
+     "kind": "task",
+     "parents": [
+      "self"
+     ],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {},
+    "order": [],
+    "conflicts": [],
+    "orphans": [
+     "self"
+    ]
+   }
+  },
+  {
+   "name": "d24-mixed-realistic",
+   "why": "A realistic mixed set: root task, descendant task, witness, override, and an orphan. Everything at once. NOTE: `assignee` gets its OWN conflict because issue-1 sets it to null and override-1 sets it to 'casey' — 2 distinct values, so spec §5.3 requires it even though the two records do not compete head-to-head on class.",
+   "records": [
+    {
+     "id": "issue-1",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "status": "open",
+      "assignee": null
+     },
+     "reason": "filed"
+    },
+    {
+     "id": "issue-2",
+     "kind": "task",
+     "parents": [
+      "issue-1"
+     ],
+     "effects": {
+      "status": "wip"
+     },
+     "reason": "started"
+    },
+    {
+     "id": "issue-3",
+     "kind": "task",
+     "parents": [
+      "issue-2"
+     ],
+     "effects": {
+      "status": "done"
+     },
+     "reason": "finished"
+    },
+    {
+     "id": "note-1",
+     "kind": "witness",
+     "parents": [
+      "issue-2"
+     ],
+     "effects": {
+      "status": "blocked"
+     },
+     "reason": "saw a blocker"
+    },
+    {
+     "id": "override-1",
+     "kind": "override",
+     "parents": [
+      "issue-3"
+     ],
+     "effects": {
+      "status": "shipped",
+      "assignee": "casey"
+     },
+     "reason": "released"
+    },
+    {
+     "id": "orphan-1",
+     "kind": "task",
+     "parents": [
+      "deleted"
+     ],
+     "effects": {
+      "status": "ghost"
+     },
+     "reason": "bad ref"
+    }
+   ],
+   "expect": {
+    "state": {
+     "status": "shipped",
+     "assignee": "casey"
+    },
+    "order": [
+     "issue-1",
+     "issue-2",
+     "issue-3",
+     "note-1",
+     "override-1"
+    ],
+    "conflicts": [
+     {
+      "key": "assignee",
+      "winner": "override-1",
+      "losers": [
+       "issue-1"
+      ]
+     },
+     {
+      "key": "status",
+      "winner": "override-1",
+      "losers": [
+       "issue-1",
+       "issue-2",
+       "issue-3",
+       "note-1"
+      ]
+     }
+    ],
+    "orphans": [
+     "orphan-1"
+    ]
+   }
+  },
+  {
+   "name": "d25-numeric-string-vs-number",
+   "why": "A record whose effect is the STRING \"1.5e20\" must not be confused with the NUMBER 1.5e20. JSON::PP hands Perl a bare scalar for both, so looks_like_number() was true for both and the string was emitted UNQUOTED -- a leaf defect. Here the string record is the descendant, so it wins by §5.2, and the state must carry the STRING through untouched. If a port coerces it to a number, state.x comes back as 1.5e20 and this case fails -- which is exactly the regression we want to catch.",
+   "records": [
+    {
+     "id": "num",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1.5e+20
+     },
+     "reason": null
+    },
+    {
+     "id": "str",
+     "kind": "task",
+     "parents": [
+      "num"
+     ],
+     "effects": {
+      "x": "1.5e20"
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "x": "1.5e20"
+    },
+    "order": [
+     "num",
+     "str"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "str",
+      "losers": [
+       "num"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d26-setter-provenance",
+   "why": "Spec §5.6: derive() must return setters for EVERY key in state, not only contested ones. Before §5.6 the setter survived only inside conflicts[].winner, so an uncontested key exposed no provenance at all -- and a nudge parented on the wrong record landed or was silently discarded depending only on whether its own id sorted before the winner.",
+   "records": [
+    {
+     "id": "only",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "status": "wip",
+      "owner": "me"
+     },
+     "reason": null
+    },
+    {
+     "id": "a",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "x": 1
+     },
+     "reason": null
+    },
+    {
+     "id": "b",
+     "kind": "task",
+     "parents": [
+      "a"
+     ],
+     "effects": {
+      "x": 2
+     },
+     "reason": null
+    }
+   ],
+   "expect": {
+    "state": {
+     "status": "wip",
+     "owner": "me",
+     "x": 2
+    },
+    "setters": {
+     "status": "only",
+     "owner": "only",
+     "x": "b"
+    },
+    "order": [
+     "a",
+     "b",
+     "only"
+    ],
+    "conflicts": [
+     {
+      "key": "x",
+      "winner": "b",
+      "losers": [
+       "a"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d27-decision-receipt-inert",
+   "why": "A decision receipt is a record with effects:{} carrying a gate verdict in reason. It must be STATE-INERT: SS5.2 iterates 'for each key K that R sets', so a record setting no key can never become a setter, create a conflict, or change state. This is the property that makes the receipt safe to write unconditionally, and it is a claim about the FOLD, not about one port. Also pins that a receipt's presence changes the topo ORDER (it is still a record in the set) while leaving state, setters and the conflict ledger byte-identical. NB: t1 sets owner=null and t2 sets owner=\"me\", so the ledger carries TWO conflicts. The receipt itself contributes neither: n1 sets no key, so it can never be a winner or a loser.",
+   "records": [
+    {
+     "id": "t1",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "status": "wip",
+      "owner": null
+     },
+     "reason": "started"
+    },
+    {
+     "id": "n1",
+     "kind": "witness",
+     "parents": [
+      "t1"
+     ],
+     "effects": {},
+     "reason": "gate:act should_apply=0.93 parent=t1-is-setter"
+    },
+    {
+     "id": "t2",
+     "kind": "task",
+     "parents": [
+      "n1"
+     ],
+     "effects": {
+      "status": "done",
+      "owner": "me"
+     },
+     "reason": "work complete"
+    }
+   ],
+   "expect": {
+    "state": {
+     "status": "done",
+     "owner": "me"
+    },
+    "setters": {
+     "status": "t2",
+     "owner": "t2"
+    },
+    "order": [
+     "t1",
+     "n1",
+     "t2"
+    ],
+    "conflicts": [
+     {
+      "key": "owner",
+      "winner": "t2",
+      "losers": [
+       "t1"
+      ]
+     },
+     {
+      "key": "status",
+      "winner": "t2",
+      "losers": [
+       "t1"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d28-licensed-action-applies",
+   "why": "The receipt IS the parent of the action. With it present the action applies; without it (d29) the same action is an orphan and is excluded from state. Together the two cases are the cross-port proof that a decision structurally LICENCES an action -- you cannot hold the action without the record that licensed it, and that is a property of the FOLD, not of one port's receipt helper.",
+   "records": [
+    {
+     "id": "t1",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "status": "wip"
+     },
+     "reason": "started"
+    },
+    {
+     "id": "receipt-0002",
+     "kind": "witness",
+     "parents": [
+      "t1"
+     ],
+     "effects": {},
+     "reason": "gate:act should_apply=0.93"
+    },
+    {
+     "id": "n2",
+     "kind": "task",
+     "parents": [
+      "receipt-0002"
+     ],
+     "effects": {
+      "status": "done"
+     },
+     "reason": "work complete"
+    }
+   ],
+   "expect": {
+    "state": {
+     "status": "done"
+    },
+    "setters": {
+     "status": "n2"
+    },
+    "order": [
+     "t1",
+     "receipt-0002",
+     "n2"
+    ],
+    "conflicts": [
+     {
+      "key": "status",
+      "winner": "n2",
+      "losers": [
+       "t1"
+      ]
+     }
+    ],
+    "orphans": []
+   }
+  },
+  {
+   "name": "d29-unlicensed-action-is-orphaned",
+   "why": "The same action as d28 with the receipt DELETED. Its parent no longer exists, so it is an orphan: excluded from state, preserved in the orphans list, absent from the order. The state is unchanged from the pre-action value, which is what makes a blocked nudge a no-op on state while still leaving a receipt behind.",
+   "records": [
+    {
+     "id": "t1",
+     "kind": "task",
+     "parents": [],
+     "effects": {
+      "status": "wip"
+     },
+     "reason": "started"
+    },
+    {
+     "id": "n2",
+     "kind": "task",
+     "parents": [
+      "receipt-0002"
+     ],
+     "effects": {
+      "status": "done"
+     },
+     "reason": "work complete"
+    }
+   ],
+   "expect": {
+    "state": {
+     "status": "wip"
+    },
+    "setters": {
+     "status": "t1"
+    },
+    "order": [
+     "t1"
+    ],
+    "conflicts": [],
+    "orphans": [
+     "n2"
+    ]
+   }
+  }
+ ]
 }

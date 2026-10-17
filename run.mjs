@@ -4,7 +4,7 @@
 // ancestry reduction, class precedence, tie-breaks, orphans, cycles, conflict ledger.
 // Every port must produce the same normalized {state, order, conflicts, orphans}.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import {readFileSync, writeFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 // Resolve against THIS file, not a hardcoded path and not the CWD. The
@@ -57,7 +57,19 @@ const run = (cmd, args, input) => {
 const PORTS = {
   py: (j) => run("python3", [`${ROOT}/wrappers/PyDerive.py`], j),
   js: (j) => run("node", [`${ROOT}/wrappers/JsDerive.mjs`], j),
-  cs: (j) => run("dotnet", [`${ROOT}/wrappers/CsDerive/bin/Debug/net9.0/CsDerive.dll`], j),
+  // Resolve the C# wrapper across BOTH configurations. The workflow builds
+  // it with `-c Release`, so a hardcoded bin/Debug path meant this port could
+  // never run in CI -- and a participant that cannot run must be a FAILURE
+  // (see the participant assertion below), not a silently smaller set.
+  // A local `dotnet build` with no -c produces Debug, so both are checked.
+  cs: (j) => {
+    const rel = `${ROOT}/wrappers/CsDerive/bin`;
+    for (const cfg of ["Release", "Debug"]) {
+      const dll = `${rel}/${cfg}/net9.0/CsDerive.dll`;
+      if (existsSync(dll)) return run("dotnet", [dll], j);
+    }
+    return run("dotnet", [`${rel}/Release/net9.0/CsDerive.dll`], j); // surfaces the real error
+  },
   pl: (j) => run("perl", [`${ROOT}/wrappers/PlDerive.pl`], j),
 };
 PORTS.c = (j) => run("sh", [`${ROOT}/wrappers/CDerive.sh`], j);
@@ -121,6 +133,27 @@ for (const c of corpus.cases) {
     catch (e) { results[p] = null; errs[p] = e.message.slice(0, 160); }
   }
   const live = names.filter(p => results[p] !== null);
+
+  // A participant that errored is not a smaller denominator. It is a FAILURE.
+  //
+  // negctl's `participant-silently-absent` sabotage survives without this:
+  // a run in which some ports are missing still reported 29/29, because the
+  // remaining ports agreed with each other and with the (blinded) spec
+  // check. The number looked identical while meaning something different
+  // from yesterday -- which is the failure mode that made "five ports agree"
+  // unverifiable when gitpp-doctor turned out to be 404.
+  if (live.length < names.length) {
+    const missing = names.filter(p => !live.includes(p));
+    console.log(`  FAIL ${c.name}  [participants missing: ${missing.join(", ")}]`);
+    // `expected` is not computed until later in this block, so record only
+    // what is in scope here. An earlier version referenced it and threw
+    // ReferenceError, which the runner reported as a crashed port -- the
+    // same shape of error-as-signal this whole file exists to remove.
+    failures.push({ name: c.name, why: c.why, agreeWithEachOther: false, matchSpec: false,
+                    missingParticipants: missing });
+    fail++;
+    continue;
+  }
   const expected = normalize(c.expect);
 
   if (live.length === 0) { skipped++; console.log(`  SKIP ${c.name} (all ports error)`); continue; }
@@ -167,7 +200,18 @@ for (const c of corpus.cases) {
   // like a disagreement.
   const strip = (s) => s.replace(/,"has_setters":(true|false)/, "").replace(/,"setters":\{[^}]*\}/, "");
   const has = (s) => /"has_setters":true/.test(s);
-  const cmp = expectsSetters ? (a, b) => a === b : strip;
+  // BUG (found by gitpp-reading-room's v0.4.6 audit): this was
+  //     const cmp = expectsSetters ? (a, b) => a === b : strip;
+  // `strip` takes ONE argument, so for any case that does not expect setters
+  // cmp(a, b) returned strip(a) -- a truthy STRING that ignores b entirely.
+  // Every such case compared as equal to the spec unconditionally, so 25 of
+  // 29 cases asserted nothing at all. Cross-port agreement still worked,
+  // which is why the suite reported 29/29 and nobody noticed.
+  //
+  // Proven: replacing d05's expected state/order/orphans with nonsense still
+  // printed 'PASS d05'. d26, which declares setters, correctly FAILed the
+  // same corruption.
+  const cmp = expectsSetters ? (a, b) => a === b : (a, b) => strip(a) === strip(b);
   const agreeWithEachOther = live.every((p) =>
     (!expectsSetters || has(results[p]) === has(results[live[0]])) &&
     cmp(results[p], results[live[0]]));
@@ -179,7 +223,32 @@ for (const c of corpus.cases) {
     if (missing.length) console.log(`      MISSING setters (spec §5.6) in: ${missing.join(", ")}`);
   }
 
-  if (agreeWithEachOther && matchSpec) {
+  // A case may only PASS if the spec comparison was actually EXERCISED.
+  //
+  // `cmp` is used by both checks above. When every port agrees, the
+  // port-to-port check is satisfied on its own terms, so a blinded `cmp`
+  // still yields a pass: negctl demonstrated 29/29 with the comparator
+  // blinded AND 10 of 29 expected states corrupted to {"CORRUPT":1}.
+  //
+  // The fix for a blinded `cmp` is necessary but not sufficient, because
+  // the two checks are not independent. This assertion makes the
+  // dependency explicit and fatal: if `matchSpec` cannot be shown to have
+  // compared anything, the case does not pass.
+  const specCompared = (() => {
+    // `expected` must be a real, non-empty comparison target. If cmp is
+    // blind this is still true, so also require that cmp is the two-arg
+    // form: a one-arg comparator returns a truthy string regardless of
+    // its second argument, which is exactly the defect this guards.
+    const comparatorIsTwoArg = cmp.length >= 2;
+    const expectedIsPresent = typeof expected === "string" && expected.length > 0;
+    return comparatorIsTwoArg && expectedIsPresent;
+  })();
+  if (!specCompared) {
+    fail++;
+    console.log(`  FAIL ${c.name}  [spec comparison not exercised: cmp.length=${cmp.length}]`);
+    failures.push({ name: c.name, why: c.why, agreeWithEachOther, matchSpec, expected, results, errs,
+                    why2: "spec comparison could not be shown to have run" });
+  } else if (agreeWithEachOther && matchSpec) {
     pass++; console.log(`  PASS ${c.name}`);
   } else {
     fail++;

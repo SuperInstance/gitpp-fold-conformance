@@ -1,7 +1,34 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable><InvariantGlobalization>true</InvariantGlobalization>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
-  <ItemGroup><ProjectReference Include="/tmp/gitpp-cs/src/Gitpp.csproj" /></ItemGroup>
+  <!--
+    The gitpp-cs checkout location, resolved at BUILD time rather than
+    hardcoded.
+
+    This was `/tmp/ports/gitpp-cs/src/Gitpp.csproj`, an absolute path that
+    exists only on one machine. In CI the ports are cloned to
+    one level above this repo, so the build failed there; and since the
+    workflow built the library but not this wrapper, the failure surfaced
+    as "the cs participant could not load" rather than a build error.
+
+    CI sets GITPP_CS_DIR. Locally it defaults to the sibling checkout that
+    the other four wrappers already assume, with the old /tmp path kept as
+    a last resort so an existing scratch layout still works.
+  -->
+  <PropertyGroup>
+    <GitppCsDir Condition="'$(GITPP_CS_DIR)' != ''">$(GITPP_CS_DIR)</GitppCsDir>
+    <GitppCsDir Condition="'$(GitppCsDir)' == '' AND Exists('../../../gitpp-cs/src/Gitpp.csproj')">$(MSBuildThisFileDirectory)../../../gitpp-cs</GitppCsDir>
+    <GitppCsDir Condition="'$(GitppCsDir)' == '' AND Exists('/tmp/ports/gitpp-cs/src/Gitpp.csproj')">/tmp/ports/gitpp-cs</GitppCsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(GitppCsDir)/src/Gitpp.csproj" Condition="Exists('$(GitppCsDir)/src/Gitpp.csproj')" />
+  </ItemGroup>
+  <Target Name="FailIfPortMissing" BeforeTargets="Build" Condition="!Exists('$(GitppCsDir)/src/Gitpp.csproj')">
+    <Error Text="gitpp-cs not found. Set GITPP_CS_DIR to the checkout (CI clones it to ../gitpp-cs)." />
+  </Target>
 </Project>

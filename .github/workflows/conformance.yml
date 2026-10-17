@@ -36,7 +36,7 @@ jobs:
 
       - name: Clone the ports
         run: |
-          git clone --depth 1 https://github.com/SuperInstance/gitpp-doctor   ../gitpp-doctor
+          git clone --depth 1 https://github.com/SuperInstance/git.pp-doctor   ../gitpp-doctor
           git clone --depth 1 https://github.com/SuperInstance/gitpp-js       ../gitpp-js
           git clone --depth 1 https://github.com/SuperInstance/gitpp-cs      ../gitpp-cs
           git clone --depth 1 https://github.com/SuperInstance/gitpp-pl      ../gitpp-pl
@@ -48,13 +48,33 @@ jobs:
           gcc -O2 -Wall -o gitpp gitpp.c -lm
           cp gitpp "$GITHUB_WORKSPACE/gitpp-c-derive"
 
-      - name: Build the C# wrapper
+      # Two separate builds. `src/Gitpp.csproj` produces the LIBRACY; the
+      # CsDerive wrapper is its own project and produces the EXECUTABLE that
+      # run.mjs actually invokes. Building only the library left the wrapper
+      # absent, so the cs participant could not load -- and the suite now
+      # treats an unloadable participant as a FAILURE rather than quietly
+      # reporting a result over four ports.
+      - name: Build the C# library
         working-directory: ../gitpp-cs
         run: dotnet build src/Gitpp.csproj -c Release
 
+      - name: Build the C# derive wrapper
+        run: dotnet build wrappers/CsDerive/CsDerive.csproj -c Release
+        env:
+          GITPP_CS_DIR: ${{ github.workspace }}/../gitpp-cs
+
+      # Every wrapper resolves its port at RUN time from these. They were
+      # hardcoded to scratch directories on one machine, so in CI four of
+      # the five participants silently failed to load -- and a run over
+      # four ports reports the same pass count as a run over five, so the
+      # output did not distinguish them. run.mjs now treats a missing
+      # participant as a FAILURE, which is what surfaced this.
       - name: Run the corpus (${{ matrix.port }})
         run: |
           export GITPP_C_BIN="$GITHUB_WORKSPACE/gitpp-c-derive"
+          export GITPP_PY="$GITHUB_WORKSPACE/../gitpp-doctor"
+          export GITPP_PL_DIR="$GITHUB_WORKSPACE/../gitpp-pl"
+          export GITPP_JS_SRC="$GITHUB_WORKSPACE/../gitpp-js/src/gitpp.js"
           node run.mjs
 
       - name: Publish results
