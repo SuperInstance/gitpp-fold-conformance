@@ -4,7 +4,17 @@ name: fold conformance
 # agree on fold SEMANTICS. Both are needed: a port can hash a record
 # identically and still disagree about which record wins a contested key.
 #
-# All five ports are cloned as siblings of this repo.
+# All SIX ports are cloned as siblings of this repo.
+#
+# The Elixir port (patchwork-quilt/gitpp-beam) is the sixth, and the only one
+# in the fleet written by a DIFFERENT organisation from the spec's author --
+# which is what makes it the only genuinely independent port, and the only one
+# that can still disagree with the other five.
+#
+# Every matrix job runs the WHOLE suite, not one port: the suite's value is the
+# cross-port comparison inside a single process, and run.mjs refuses to report
+# over a reduced roster. The matrix is parallelism, not partitioning -- which is
+# why all six jobs need the full toolchain, including OTP 27 and Elixir 1.17.
 
 on:
   push:
@@ -14,11 +24,15 @@ on:
 
 jobs:
   conformance:
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`: the toolchain install pins an
+    # ubuntu-22.04 OTP build by checksum, and a runner-image bump would then
+    # change what "1e16" means for reproducibility. Bumping this line requires
+    # bumping OTP_SHA256_* in scripts/install-beam.sh in the same diff.
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        port: [python, javascript, csharp, perl, c]
+        port: [python, javascript, csharp, perl, c, elixir]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,6 +48,41 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      # A WRITABLE DOTNET_CLI_HOME with a resolvable NuGet.Config.
+      #
+      # Without one, every `dotnet build` in this workflow fails with an XML
+      # parse error that names neither the cause nor the participant -- and the
+      # symptom downstream is "the cs participant could not load", which reads
+      # as a harness problem. Declared before any dotnet invocation, not after
+      # the first failure.
+      - name: Prepare the .NET CLI home
+        run: |
+          echo "DOTNET_CLI_HOME=$RUNNER_TEMP/dotnet" >> "$GITHUB_ENV"
+          echo "NUGET_PACKAGES=$RUNNER_TEMP/nuget" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/dotnet" "$RUNNER_TEMP/nuget"
+          dotnet --info
+
+      # OTP 27 + Elixir 1.17, from builds.hex.pm, pinned by SHA-256.
+      #
+      # NOT the distro packages: ubuntu's apt Elixir is 1.14, and gitpp-beam's
+      # canon.ex uses a runtime-sized binary segment
+      # (<<...::binary-size(^decpt), ...>>), which is 1.17 syntax. Under 1.14
+      # the PORT fails to compile -- and a wrapper that cannot compile exits
+      # non-zero, which the harness reports as a missing participant or as a
+      # disagreement. "The toolchain is too old" and "the port is wrong" are
+      # indistinguishable from the outside, so the version is asserted HERE,
+      # where the error is legible.
+      - name: Install OTP 27 + Elixir 1.17
+        run: |
+          bash scripts/install-beam.sh
+          echo "$HOME/toolchain/beam/otp/bin" >> "$GITHUB_PATH"
+          echo "$HOME/toolchain/beam/elixir/bin" >> "$GITHUB_PATH"
+          echo "ELIXIR_ERL_OPTIONS=+fnu" >> "$GITHUB_ENV"
+          echo "MIX_HOME=$HOME/toolchain/beam/.mix" >> "$GITHUB_ENV"
+          echo "HEX_HOME=$HOME/toolchain/beam/.hex" >> "$GITHUB_ENV"
+          echo "BEAM_DISTRO=ubuntu-22.04" >> "$GITHUB_ENV"
+          elixir --version
+
       - name: Clone the ports
         run: |
           git clone --depth 1 https://github.com/SuperInstance/git.pp-doctor   ../gitpp-doctor
@@ -41,6 +90,16 @@ jobs:
           git clone --depth 1 https://github.com/SuperInstance/gitpp-cs      ../gitpp-cs
           git clone --depth 1 https://github.com/SuperInstance/gitpp-pl      ../gitpp-pl
           git clone --depth 1 https://github.com/SuperInstance/gitpp-c       ../gitpp-c
+          git clone --depth 1 https://github.com/patchwork-quilt/gitpp-beam  ../gitpp-beam
+
+      # The Elixir port is LOADED FROM COMPILED MODULES, not run through mix per
+      # case, so the BEAM starts once per port invocation and finds its modules
+      # on the code path. MIX_ENV=prod because the wrapper never starts an
+      # application: the fold is a pure function and the Project GenServer is
+      # not involved in a conformance run.
+      - name: Compile the Elixir port
+        working-directory: ../gitpp-beam
+        run: MIX_ENV=prod mix compile
 
       - name: Build the C99 port
         working-directory: ../gitpp-c
@@ -75,6 +134,7 @@ jobs:
           export GITPP_PY="$GITHUB_WORKSPACE/../gitpp-doctor"
           export GITPP_PL_DIR="$GITHUB_WORKSPACE/../gitpp-pl"
           export GITPP_JS_SRC="$GITHUB_WORKSPACE/../gitpp-js/src/gitpp.js"
+          export GITPP_EX_EBIN="$GITHUB_WORKSPACE/../gitpp-beam/_build/prod/lib/gitpp_beam/ebin"
           node run.mjs
 
       - name: Publish results

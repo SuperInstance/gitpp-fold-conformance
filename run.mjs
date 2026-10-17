@@ -50,7 +50,13 @@ const RAW = rawRecordsArrays();
 const run = (cmd, args, input) => {
   const r = spawnSync(cmd, args, { input, encoding: "utf8", timeout: 60000,
     env: { ...process.env, HOME: process.env.HOME || "/tmp/fake-home" } });
-  if (r.status !== 0) throw new Error(`exit ${r.status}: ${(r.stderr || r.stdout || "").trim().split("\n").pop()}`);
+  // A command that cannot be spawned at all (ENOENT: no `elixir` on PATH) has
+  // status null and puts the reason in r.error. Without this branch the
+  // message is "exit null: " -- which names neither the port nor the cause,
+  // and the participants-missing assertion below then reports a missing
+  // participant for a problem that is actually a missing toolchain.
+  if (r.error) throw new Error(`${cmd}: ${r.error.code || r.error.message}`);
+  if (r.status !== 0) throw new Error(`exit ${r.status}: ${(r.stderr || r.stdout || "").trim().split("\n").filter(Boolean).pop()}`);
   return r.stdout.trim();
 };
 
@@ -71,7 +77,24 @@ const PORTS = {
     return run("dotnet", [`${rel}/Release/net9.0/CsDerive.dll`], j); // surfaces the real error
   },
   pl: (j) => run("perl", [`${ROOT}/wrappers/PlDerive.pl`], j),
+  // Elixir/OTP 27 (gitpp-beam), the sixth port and the only one in the fleet
+  // written by a different organisation. Loaded from a COMPILED ebin dir at RUN
+  // time, the same indirection the other four wrappers use, so CI differs from
+  // a local checkout by an environment variable and not by a hardcoded path.
+  //
+  // Needs OTP 27 + Elixir 1.17: the port's canon.ex uses a runtime-sized
+  // binary segment (<<...::binary-size(^decpt), ...>>), which is 1.17 syntax,
+  // and ubuntu's apt Elixir is 1.14. The toolchain step in the workflow
+  // installs both from builds.hex.pm with pinned checksums.
+  ex: (j) => run("elixir", ["-pa", exEbin(), `${ROOT}/wrappers/ElixirDerive.exs`], j),
 };
+
+// Run-time resolution of the BEAM port's compiled modules. GITPP_EX_EBIN wins;
+// the default is the sibling checkout the workflow clones, matching the layout
+// every other wrapper here already assumes.
+const EX_EBIN = process.env.GITPP_EX_EBIN ||
+  `${ROOT}/../gitpp-beam/_build/prod/lib/gitpp_beam/ebin`;
+const exEbin = () => EX_EBIN;
 PORTS.c = (j) => run("sh", [`${ROOT}/wrappers/CDerive.sh`], j);
 const names = Object.keys(PORTS);
 
@@ -116,18 +139,81 @@ print(json.dumps(out,sort_keys=True,ensure_ascii=False,separators=(",",":")))
   return r.stdout.trim();
 }
 
+// ---------------------------------------------------------------------------
+// ROSTER ASSERTION
+//
+// The `participants missing` check inside the case loop turns a port that
+// ERRORS into a failure. It cannot catch a port that is not in the table at
+// all: delete `ex:` from PORTS and `names` shrinks with it, every remaining
+// port still agrees, and the suite prints the same "29 pass" it printed
+// yesterday -- now meaning something different. A run over five ports and a run
+// over six produce an identical line.
+//
+// So the roster is stated here, as a reviewed constant, and checked BEFORE any
+// case runs. This is the sixth time a participant-count bug has produced a
+// confident number in this project, and the first time it was a deletion rather
+// than an error.
+const REQUIRED_PORTS = ["py", "js", "cs", "pl", "c", "ex"];
+const missingFromRoster = REQUIRED_PORTS.filter((p) => !names.includes(p));
+if (missingFromRoster.length) {
+  console.error(`\n${"=".repeat(72)}`);
+  console.error(`FATAL: fold conformance -- ${missingFromRoster.length} required participant(s) absent from the runner table.`);
+  console.error("=".repeat(72));
+  console.error(`  registered: [${names.join(", ")}]`);
+  console.error(`  required:   [${REQUIRED_PORTS.join(", ")}]`);
+  console.error(`  missing:    [${missingFromRoster.join(", ")}]`);
+  console.error("\nA port that cannot run is a FAILURE, not a smaller denominator. Reporting\n" +
+              "29/29 over five ports is indistinguishable from 29/29 over six.\n");
+  process.exit(1);
+}
+console.log(`participants: [${names.join(", ")}]`);
+
+// ---------------------------------------------------------------------------
+// PREFLIGHT
+//
+// One tiny derive per port, before the corpus is touched. The per-case
+// `participants missing` assertion is the authority on whether a port worked;
+// this is only here so that "the toolchain is missing" is one line of output
+// instead of 29 identical failures, and so the toolchain check names the port
+// and the fix.
+const PROBE = JSON.stringify([{ id: "probe", kind: "task", parents: [], effects: { x: 1 }, reason: null }]);
+{
+  const bad = [];
+  for (const p of names) {
+    let out;
+    try {
+      out = PORTS[p](PROBE);
+      const j = JSON.parse(out);
+      for (const k of ["state", "order", "conflicts", "orphans"]) {
+        if (!(k in j)) throw new Error(`derive() output has no "${k}"`);
+      }
+    } catch (e) {
+      bad.push(`  ${p}: ${String(e.message).split("\n").filter(Boolean).pop().slice(0, 160)}`);
+    }
+  }
+  if (bad.length) {
+    console.error(`\n${"=".repeat(72)}`);
+    console.error(`FATAL: fold conformance -- ${bad.length} participant(s) cannot derive.`);
+    console.error("=".repeat(72));
+    for (const l of bad) console.error(l);
+    console.error(`\nChecked: [${names.join(", ")}]. No case was run.\n`);
+    process.exit(1);
+  }
+  console.log(`preflight: all ${names.length} participants derived a probe record`);
+}
+
 let pass = 0, fail = 0, skipped = 0;
 const failures = [];
 
 for (const c of corpus.cases) {
   const input = RAW.get(c.name) || JSON.stringify(c.records);
-  const got = {}, errs = {};
-  for (const p of names) {
-    try { got[p] = normalize(JSON.parse(run(PORTS[p] ? null : null, p) || "null")); }
-    catch (e) { }
-  }
-  // (re-run properly below)
-  const results = {};
+  // NOTE: there was a dead loop here that ran every port with cmd=null and
+  // swallowed the throw. It produced no values, cost 29 x 6 spawn attempts, and
+  // read like a comparison. Removed -- but it ALSO declared `errs`, which the
+  // failure paths below use. Removing it wholesale made the first real failure
+  // a ReferenceError, which the runner would have reported as a crashed port:
+  // the same shape of error-as-signal this file exists to remove.
+  const results = {}, errs = {};
   for (const p of names) {
     try { results[p] = normalize(JSON.parse(PORTS[p](input))); }
     catch (e) { results[p] = null; errs[p] = e.message.slice(0, 160); }

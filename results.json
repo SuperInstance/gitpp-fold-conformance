@@ -1,7 +1,90 @@
 {
-  "pass": 29,
-  "fail": 0,
+  "pass": 23,
+  "fail": 6,
   "skipped": 0,
   "total": 29,
-  "failures": []
+  "failures": [
+    {
+      "name": "d12-orphan-descendant-not-auto-orphaned",
+      "why": "Spec §5.5: 'The orphan's descendants are NOT auto-orphaned (the fold runs on what stands).' A child of an orphan still folds.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "expected": "{\"conflicts\":[],\"has_setters\":false,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{},\"state\":{\"z\":\"i7\"}}",
+      "results": {
+        "py": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{\"z\":\"child\"},\"state\":{\"z\":\"i7\"}}",
+        "js": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{\"z\":\"child\"},\"state\":{\"z\":\"i7\"}}",
+        "cs": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{\"z\":\"child\"},\"state\":{\"z\":\"i7\"}}",
+        "pl": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{\"z\":\"child\"},\"state\":{\"z\":\"i7\"}}",
+        "ex": "{\"conflicts\":[],\"has_setters\":false,\"order\":[],\"orphans\":[\"child\",\"orph\"],\"setters\":{},\"state\":{}}",
+        "c": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"child\"],\"orphans\":[\"orph\"],\"setters\":{\"z\":\"child\"},\"state\":{\"z\":\"i7\"}}"
+      },
+      "errs": {}
+    },
+    {
+      "name": "d24-mixed-realistic",
+      "why": "A realistic mixed set: root task, descendant task, witness, override, and an orphan. Everything at once. NOTE: `assignee` gets its OWN conflict because issue-1 sets it to null and override-1 sets it to 'casey' — 2 distinct values, so spec §5.3 requires it even though the two records do not compete head-to-head on class.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "missingParticipants": [
+        "ex"
+      ]
+    },
+    {
+      "name": "d26-setter-provenance",
+      "why": "Spec §5.6: derive() must return setters for EVERY key in state, not only contested ones. Before §5.6 the setter survived only inside conflicts[].winner, so an uncontested key exposed no provenance at all -- and a nudge parented on the wrong record landed or was silently discarded depending only on whether its own id sorted before the winner.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "expected": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+      "results": {
+        "py": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+        "js": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+        "cs": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+        "pl": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+        "ex": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":false,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}",
+        "c": "{\"conflicts\":[{\"key\":\"x\",\"losers\":[\"a\"],\"winner\":\"b\"}],\"has_setters\":true,\"order\":[\"a\",\"b\",\"only\"],\"orphans\":[],\"setters\":{\"owner\":\"only\",\"status\":\"only\",\"x\":\"b\"},\"state\":{\"owner\":\"me\",\"status\":\"wip\",\"x\":\"i2\"}}"
+      },
+      "errs": {}
+    },
+    {
+      "name": "d27-decision-receipt-inert",
+      "why": "A decision receipt is a record with effects:{} carrying a gate verdict in reason. It must be STATE-INERT: SS5.2 iterates 'for each key K that R sets', so a record setting no key can never become a setter, create a conflict, or change state. This is the property that makes the receipt safe to write unconditionally, and it is a claim about the FOLD, not about one port. Also pins that a receipt's presence changes the topo ORDER (it is still a record in the set) while leaving state, setters and the conflict ledger byte-identical. NB: t1 sets owner=null and t2 sets owner=\"me\", so the ledger carries TWO conflicts. The receipt itself contributes neither: n1 sets no key, so it can never be a winner or a loser.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "missingParticipants": [
+        "ex"
+      ]
+    },
+    {
+      "name": "d28-licensed-action-applies",
+      "why": "The receipt IS the parent of the action. With it present the action applies; without it (d29) the same action is an orphan and is excluded from state. Together the two cases are the cross-port proof that a decision structurally LICENCES an action -- you cannot hold the action without the record that licensed it, and that is a property of the FOLD, not of one port's receipt helper.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "expected": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}",
+      "results": {
+        "py": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}",
+        "js": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}",
+        "cs": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}",
+        "pl": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}",
+        "ex": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":false,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{},\"state\":{\"status\":\"done\"}}",
+        "c": "{\"conflicts\":[{\"key\":\"status\",\"losers\":[\"t1\"],\"winner\":\"n2\"}],\"has_setters\":true,\"order\":[\"t1\",\"receipt-0002\",\"n2\"],\"orphans\":[],\"setters\":{\"status\":\"n2\"},\"state\":{\"status\":\"done\"}}"
+      },
+      "errs": {}
+    },
+    {
+      "name": "d29-unlicensed-action-is-orphaned",
+      "why": "The same action as d28 with the receipt DELETED. Its parent no longer exists, so it is an orphan: excluded from state, preserved in the orphans list, absent from the order. The state is unchanged from the pre-action value, which is what makes a blocked nudge a no-op on state while still leaving a receipt behind.",
+      "agreeWithEachOther": false,
+      "matchSpec": false,
+      "expected": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}",
+      "results": {
+        "py": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}",
+        "js": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}",
+        "cs": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}",
+        "pl": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}",
+        "ex": "{\"conflicts\":[],\"has_setters\":false,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{},\"state\":{\"status\":\"wip\"}}",
+        "c": "{\"conflicts\":[],\"has_setters\":true,\"order\":[\"t1\"],\"orphans\":[\"n2\"],\"setters\":{\"status\":\"t1\"},\"state\":{\"status\":\"wip\"}}"
+      },
+      "errs": {}
+    }
+  ]
 }

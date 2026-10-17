@@ -2,6 +2,31 @@
 
 > Cross-port **fold** conformance. The leaf fuzz tests record *encoding*; this tests fold **semantics**: ancestry reduction, class precedence, tie-breaks, orphans, cycles, and the conflict ledger.
 
+## The sixth port: `patchwork-quilt/gitpp-beam` (Elixir / OTP 27)
+
+Added on `feat/elixir-port`. It is the only port in the fleet written by a
+**different organisation** from the spec's author, so it is the only genuinely
+independent one — and it disagrees with the other five on 6 of the 29 cases.
+
+| Cases | Outcome | Why |
+|---|---|---|
+| 23 | PASS | identical state, order, conflicts and orphans |
+| d24, d27 | FAIL — `participants missing: ex` | the port **raises** `FunctionClauseError` in `Canon.value_key(:null)` |
+| d26, d28, d29 | FAIL — `MISSING setters (§5.6)` | `Fold.derive/1` returns no `setters`, and no public API can recover an uncontested key's setter |
+| d12 | FAIL — `ports-agree=false` | the port **violates §5.5**: it auto-orphans an orphan's descendants, so `state` is `{}` where the spec requires `{"z": 7}` |
+
+d12 is the interesting one: every other port applies `child` and orphans only
+`orph`; the Elixir port orphans both and folds nothing. Spec §5.5 is explicit
+— "the orphan's descendants are NOT auto-orphaned (the fold runs on what
+stands)" — and its `do_kahn/3` comment asserts the opposite.
+
+The toolchain is the hard part of adding it: the port uses a runtime-sized
+binary segment (`<<...::binary-size(^decpt), ...>>`), which is Elixir 1.17
+syntax, so ubuntu's apt Elixir 1.14 **cannot compile it** — and a wrapper that
+cannot compile is indistinguishable, from the harness, from a port that
+disagrees. `scripts/install-beam.sh` installs OTP 27 + Elixir 1.17 from
+builds.hex.pm pinned by SHA-256, with no sudo.
+
 ## Why this exists
 
 [`gitpp-cross-port`](../gitpp-cross-port) proves all 5 ports produce **byte-identical leaves** on 1,000/1,000 random float64 records. That is a claim about *encoding*.
