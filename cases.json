@@ -1380,6 +1380,105 @@
         ],
         "orphans": []
       }
+    },
+    {
+      "name": "d28-licensed-action-applies",
+      "why": "The receipt IS the parent of the action. With it present the action applies; without it (d29) the same action is an orphan and is excluded from state. Together the two cases are the cross-port proof that a decision structurally LICENCES an action -- you cannot hold the action without the record that licensed it, and that is a property of the FOLD, not of one port's receipt helper.",
+      "records": [
+        {
+          "id": "t1",
+          "kind": "task",
+          "parents": [],
+          "effects": {
+            "status": "wip"
+          },
+          "reason": "started"
+        },
+        {
+          "id": "receipt-0002",
+          "kind": "witness",
+          "parents": [
+            "t1"
+          ],
+          "effects": {},
+          "reason": "gate:act should_apply=0.93"
+        },
+        {
+          "id": "n2",
+          "kind": "task",
+          "parents": [
+            "receipt-0002"
+          ],
+          "effects": {
+            "status": "done"
+          },
+          "reason": "work complete"
+        }
+      ],
+      "expect": {
+        "state": {
+          "status": "done"
+        },
+        "setters": {
+          "status": "n2"
+        },
+        "order": [
+          "t1",
+          "receipt-0002",
+          "n2"
+        ],
+        "conflicts": [
+          {
+            "key": "status",
+            "winner": "n2",
+            "losers": [
+              "t1"
+            ]
+          }
+        ],
+        "orphans": []
+      }
+    },
+    {
+      "name": "d29-unlicensed-action-is-orphaned",
+      "why": "The same action as d28 with the receipt DELETED. Its parent no longer exists, so it is an orphan: excluded from state, preserved in the orphans list, absent from the order. The state is unchanged from the pre-action value, which is what makes a blocked nudge a no-op on state while still leaving a receipt behind.",
+      "records": [
+        {
+          "id": "t1",
+          "kind": "task",
+          "parents": [],
+          "effects": {
+            "status": "wip"
+          },
+          "reason": "started"
+        },
+        {
+          "id": "n2",
+          "kind": "task",
+          "parents": [
+            "receipt-0002"
+          ],
+          "effects": {
+            "status": "done"
+          },
+          "reason": "work complete"
+        }
+      ],
+      "expect": {
+        "state": {
+          "status": "wip"
+        },
+        "setters": {
+          "status": "t1"
+        },
+        "order": [
+          "t1"
+        ],
+        "conflicts": [],
+        "orphans": [
+          "n2"
+        ]
+      }
     }
   ]
 }

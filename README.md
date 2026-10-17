@@ -43,6 +43,8 @@ We had exactly that, and the leaf fuzz was structurally incapable of finding it.
 | **d25** | **numeric string vs number preserved through the fold** | **§3, §5.2** |
 | **d26** | **setter provenance for every key, contested or not** | **§5.6** |
 | **d27** | **a decision receipt is state-inert** | **§5.2, §5.1** |
+| **d28** | **a licensed action applies (receipt is its parent)** | **§5.2, §5.4** |
+| **d29** | **the same action without its receipt is orphaned and excluded** | **§5.5** |
 
 **Bold** = cases that caught a real bug.
 
@@ -77,13 +79,21 @@ Exit code 0 = all ports agree with each other and with the spec.
 ## Result
 
 ```
-27 pass, 0 fail, 0 skip (of 27)
+29 pass, 0 fail, 0 skip (of 29)
 ```
 
-The `27` is the whole corpus. `d26` pins spec §5.6 (setter provenance);
-`d27` pins that a decision receipt — a record with `effects: {}` carrying
-a gate verdict in `reason` — cannot change state, setters, or the conflict
-ledger. See [`gitpp-decision-parent`](https://github.com/SuperInstance/gitpp-decision-parent).
+The `29` is the whole corpus:
+
+- `d26` pins spec §5.6 (setter provenance).
+- `d27` pins that a decision receipt — a record with `effects: {}`
+  carrying a gate verdict in `reason` — cannot change state, setters, or
+  the conflict ledger.
+- `d28`/`d29` are a **pair**: the same action with and without its
+  receipt. With the receipt it applies; without it, it is an orphan and
+  excluded. Together they are the cross-port proof that a decision
+  structurally *licences* an action — you cannot hold one without the
+  record that licensed it. See
+  [`gitpp-decision-parent`](https://github.com/SuperInstance/gitpp-decision-parent).
 
 ## What the corpus was blind to until d27
 
