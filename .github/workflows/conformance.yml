@@ -48,9 +48,20 @@ jobs:
           gcc -O2 -Wall -o gitpp gitpp.c -lm
           cp gitpp "$GITHUB_WORKSPACE/gitpp-c-derive"
 
-      - name: Build the C# wrapper
+      # Two separate builds. `src/Gitpp.csproj` produces the LIBRACY; the
+      # CsDerive wrapper is its own project and produces the EXECUTABLE that
+      # run.mjs actually invokes. Building only the library left the wrapper
+      # absent, so the cs participant could not load -- and the suite now
+      # treats an unloadable participant as a FAILURE rather than quietly
+      # reporting a result over four ports.
+      - name: Build the C# library
         working-directory: ../gitpp-cs
         run: dotnet build src/Gitpp.csproj -c Release
+
+      - name: Build the C# derive wrapper
+        run: dotnet build wrappers/CsDerive/CsDerive.csproj -c Release
+        env:
+          GITPP_CS_DIR: ${{ github.workspace }}/../gitpp-cs
 
       - name: Run the corpus (${{ matrix.port }})
         run: |
