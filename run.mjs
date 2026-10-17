@@ -167,7 +167,18 @@ for (const c of corpus.cases) {
   // like a disagreement.
   const strip = (s) => s.replace(/,"has_setters":(true|false)/, "").replace(/,"setters":\{[^}]*\}/, "");
   const has = (s) => /"has_setters":true/.test(s);
-  const cmp = expectsSetters ? (a, b) => a === b : strip;
+  // BUG (found by gitpp-reading-room's v0.4.6 audit): this was
+  //     const cmp = expectsSetters ? (a, b) => a === b : strip;
+  // `strip` takes ONE argument, so for any case that does not expect setters
+  // cmp(a, b) returned strip(a) -- a truthy STRING that ignores b entirely.
+  // Every such case compared as equal to the spec unconditionally, so 25 of
+  // 29 cases asserted nothing at all. Cross-port agreement still worked,
+  // which is why the suite reported 29/29 and nobody noticed.
+  //
+  // Proven: replacing d05's expected state/order/orphans with nonsense still
+  // printed 'PASS d05'. d26, which declares setters, correctly FAILed the
+  // same corruption.
+  const cmp = expectsSetters ? (a, b) => a === b : (a, b) => strip(a) === strip(b);
   const agreeWithEachOther = live.every((p) =>
     (!expectsSetters || has(results[p]) === has(results[live[0]])) &&
     cmp(results[p], results[live[0]]));
