@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys, json
-sys.path.insert(0, '../gitpp-doctor')
-import gitpp_doctor
+import os; sys.path.insert(0, os.environ.get('GITPP_PY', '/tmp/rr2/readers/py'))
+import fold as gitpp_doctor
 d = gitpp_doctor.derive(json.load(sys.stdin))
 print(json.dumps({
     "state": d.get("state", {}),

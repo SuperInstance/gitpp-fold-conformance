@@ -121,6 +121,27 @@ for (const c of corpus.cases) {
     catch (e) { results[p] = null; errs[p] = e.message.slice(0, 160); }
   }
   const live = names.filter(p => results[p] !== null);
+
+  // A participant that errored is not a smaller denominator. It is a FAILURE.
+  //
+  // negctl's `participant-silently-absent` sabotage survives without this:
+  // a run in which some ports are missing still reported 29/29, because the
+  // remaining ports agreed with each other and with the (blinded) spec
+  // check. The number looked identical while meaning something different
+  // from yesterday -- which is the failure mode that made "five ports agree"
+  // unverifiable when gitpp-doctor turned out to be 404.
+  if (live.length < names.length) {
+    const missing = names.filter(p => !live.includes(p));
+    console.log(`  FAIL ${c.name}  [participants missing: ${missing.join(", ")}]`);
+    // `expected` is not computed until later in this block, so record only
+    // what is in scope here. An earlier version referenced it and threw
+    // ReferenceError, which the runner reported as a crashed port -- the
+    // same shape of error-as-signal this whole file exists to remove.
+    failures.push({ name: c.name, why: c.why, agreeWithEachOther: false, matchSpec: false,
+                    missingParticipants: missing });
+    fail++;
+    continue;
+  }
   const expected = normalize(c.expect);
 
   if (live.length === 0) { skipped++; console.log(`  SKIP ${c.name} (all ports error)`); continue; }
@@ -190,7 +211,32 @@ for (const c of corpus.cases) {
     if (missing.length) console.log(`      MISSING setters (spec §5.6) in: ${missing.join(", ")}`);
   }
 
-  if (agreeWithEachOther && matchSpec) {
+  // A case may only PASS if the spec comparison was actually EXERCISED.
+  //
+  // `cmp` is used by both checks above. When every port agrees, the
+  // port-to-port check is satisfied on its own terms, so a blinded `cmp`
+  // still yields a pass: negctl demonstrated 29/29 with the comparator
+  // blinded AND 10 of 29 expected states corrupted to {"CORRUPT":1}.
+  //
+  // The fix for a blinded `cmp` is necessary but not sufficient, because
+  // the two checks are not independent. This assertion makes the
+  // dependency explicit and fatal: if `matchSpec` cannot be shown to have
+  // compared anything, the case does not pass.
+  const specCompared = (() => {
+    // `expected` must be a real, non-empty comparison target. If cmp is
+    // blind this is still true, so also require that cmp is the two-arg
+    // form: a one-arg comparator returns a truthy string regardless of
+    // its second argument, which is exactly the defect this guards.
+    const comparatorIsTwoArg = cmp.length >= 2;
+    const expectedIsPresent = typeof expected === "string" && expected.length > 0;
+    return comparatorIsTwoArg && expectedIsPresent;
+  })();
+  if (!specCompared) {
+    fail++;
+    console.log(`  FAIL ${c.name}  [spec comparison not exercised: cmp.length=${cmp.length}]`);
+    failures.push({ name: c.name, why: c.why, agreeWithEachOther, matchSpec, expected, results, errs,
+                    why2: "spec comparison could not be shown to have run" });
+  } else if (agreeWithEachOther && matchSpec) {
     pass++; console.log(`  PASS ${c.name}`);
   } else {
     fail++;

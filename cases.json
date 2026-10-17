@@ -393,7 +393,7 @@
   },
   {
    "name": "d10-diamond-dag",
-   "why": "Diamond: root -> two branches -> join. Join is the most-derived for x. Order is Kahn, smallest-id-first WITHIN a tier (5.4): r is a root, l and m become available once r is emitted, and j only after both.",
+   "why": "Diamond: root -> two branches -> join. Join is the most-derived for x. Order is Kahn, smallest-id-first WITHIN a tier (5.4): r is a root, l and m become available once r is emitted, and the join j only after both.",
    "records": [
     {
      "id": "r",
