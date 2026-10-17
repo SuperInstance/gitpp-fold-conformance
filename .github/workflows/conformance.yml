@@ -36,7 +36,7 @@ jobs:
 
       - name: Clone the ports
         run: |
-          git clone --depth 1 https://github.com/SuperInstance/gitpp-doctor   ../gitpp-doctor
+          git clone --depth 1 https://github.com/SuperInstance/git.pp-doctor   ../gitpp-doctor
           git clone --depth 1 https://github.com/SuperInstance/gitpp-js       ../gitpp-js
           git clone --depth 1 https://github.com/SuperInstance/gitpp-cs      ../gitpp-cs
           git clone --depth 1 https://github.com/SuperInstance/gitpp-pl      ../gitpp-pl
