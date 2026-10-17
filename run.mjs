@@ -4,7 +4,7 @@
 // ancestry reduction, class precedence, tie-breaks, orphans, cycles, conflict ledger.
 // Every port must produce the same normalized {state, order, conflicts, orphans}.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import {readFileSync, writeFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 // Resolve against THIS file, not a hardcoded path and not the CWD. The
@@ -57,7 +57,19 @@ const run = (cmd, args, input) => {
 const PORTS = {
   py: (j) => run("python3", [`${ROOT}/wrappers/PyDerive.py`], j),
   js: (j) => run("node", [`${ROOT}/wrappers/JsDerive.mjs`], j),
-  cs: (j) => run("dotnet", [`${ROOT}/wrappers/CsDerive/bin/Debug/net9.0/CsDerive.dll`], j),
+  // Resolve the C# wrapper across BOTH configurations. The workflow builds
+  // it with `-c Release`, so a hardcoded bin/Debug path meant this port could
+  // never run in CI -- and a participant that cannot run must be a FAILURE
+  // (see the participant assertion below), not a silently smaller set.
+  // A local `dotnet build` with no -c produces Debug, so both are checked.
+  cs: (j) => {
+    const rel = `${ROOT}/wrappers/CsDerive/bin`;
+    for (const cfg of ["Release", "Debug"]) {
+      const dll = `${rel}/${cfg}/net9.0/CsDerive.dll`;
+      if (existsSync(dll)) return run("dotnet", [dll], j);
+    }
+    return run("dotnet", [`${rel}/Release/net9.0/CsDerive.dll`], j); // surfaces the real error
+  },
   pl: (j) => run("perl", [`${ROOT}/wrappers/PlDerive.pl`], j),
 };
 PORTS.c = (j) => run("sh", [`${ROOT}/wrappers/CDerive.sh`], j);
