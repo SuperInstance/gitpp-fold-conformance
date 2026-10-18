@@ -12,7 +12,10 @@ We had exactly that, and the leaf fuzz was structurally incapable of finding it.
 
 ## What this tests
 
-`cases.json` holds 25 hand-written cases, each naming the spec clause it exercises and carrying an expected result **written from the spec, not from any port**:
+`cases.json` holds **29** hand-written cases, each naming the spec clause it exercises and
+carrying an expected result **written from the spec, not from any port**. That count is
+`cases.cases.length`, not a number maintained by hand: `node run.mjs` derives it and
+prints it as the `(of 29)` in [Result](#result) below, so the two can never disagree:
 
 | # | Case | Spec clause |
 |---|------|-------------|
